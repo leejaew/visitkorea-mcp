@@ -1,127 +1,72 @@
 # VisitKorea MCP Server
 
-An open-source [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that connects AI agents — including Claude Desktop, Claude AI, and Manus AI — to the **Korea Tourism Organization (KTO) English Open Data API**. Ask any MCP-compatible AI about Korean tourist attractions, restaurants, accommodations, festivals, and more, in English.
+![Python](https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white)
+![MCP Transport](https://img.shields.io/badge/MCP-Streamable_HTTP-8B5CF6)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**API Data Source:** [Korea Tourism Organization English Open API](https://www.data.go.kr/data/15101753/openapi.do)
-> This is also where you apply for and obtain your API key.
-
----
-
-## Architecture
-
-```
-AI Agent (Claude AI / Manus AI)
-        │  MCP over Streamable HTTP
-        ▼
-Node.js Express Proxy  (port 8080, path /mcp)
-        │  localhost:3001
-        ▼
-Python MCP Server  (Starlette + uvicorn, port 3001)
-        │  HTTPS
-        ▼
-Korea Tourism Organization Open API
-(apis.data.go.kr/B551011/EngService2)
-```
-
-The Node.js server acts as the public-facing entry point (handling Replit's routing and deployment lifecycle). It spawns the Python MCP server as a subprocess and proxies all `/mcp` requests to it.
-
----
+An MCP (Model Context Protocol) server that wraps the **Korea Tourism Organization (KTO) General Tourism Open API** (`EngService2`), published on [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do), exposing 14 structured tools that AI agents — including Claude and Manus AI — can call directly via Streamable HTTP.
 
 ## Features
 
-### 14 MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `search_tourism_by_area` | Search attractions, restaurants, accommodations, shopping, cultural facilities, leisure spots, and festivals by province or district |
-| `search_tourism_by_location` | Find tourism spots near a GPS coordinate within a specified radius — ideal for "things to do near me" queries |
-| `search_tourism_by_keyword` | Full-text keyword search across all content types in English |
-| `search_festivals_and_events` | Discover Korean festivals, performances, and events by date range |
-| `search_accommodations` | Browse hotels, pensions, hostels, condominiums, and camping sites |
-| `get_tourism_common_info` | Retrieve title, address, GPS, phone, homepage, and overview for any content item by ID |
-| `get_tourism_intro_info` | Get type-specific details: heritage info for attractions, check-in/out for hotels, menu specialties for restaurants, etc. |
-| `get_tourism_detail_info` | Get repeating sub-data: room types with pricing for hotels, menu items for restaurants, program schedules for events |
-| `get_tourism_images` | Fetch all photo URLs (original + thumbnail) associated with a content item |
-| `get_sync_list` | List content items created or modified since a given date — useful for keeping local databases in sync |
-| `get_legal_district_codes` | Look up province and city/county codes (법정동) used to filter search results |
-| `get_classification_codes` | Browse the new 3-level classification hierarchy (AC=Accommodation, EV=Events, FO=Food, VE=Culture, etc.) |
-| `get_area_codes` | Look up the legacy area codes (17 provinces) used by older API parameters |
-| `get_category_codes` | Browse the legacy 3-level category hierarchy (A01=Nature, A02=Culture, A05=Cuisine, etc.) |
-
-### Content Types
-
-| ID | Type |
-|----|------|
-| 75 | Leisure / Sports |
-| 76 | Tourist Attraction |
-| 78 | Cultural Facility |
-| 79 | Shopping |
-| 80 | Accommodation |
-| 82 | Restaurant / Food |
-| 85 | Festival / Performance / Event |
-
----
+- **Area-based search** — list tourism venues by province, city, or district
+- **Location-based search** — find venues within a GPS radius (up to 20 km), sorted by distance
+- **Keyword search** — full-text English keyword search across all tourism content types
+- **Festival and event search** — discover events by date range, with optional region filter
+- **Accommodation search** — browse hotels, pensions, guesthouses, condominiums, and camping sites
+- **7 content type filters** — Tourist Attraction, Cultural Facility, Accommodation, Restaurant, Shopping, Leisure/Sports, Festival/Event
+- **Sync list** — full dataset synchronisation list for building and maintaining local caches
+- **Detail records** — common info, type-specific intro info, repeating structured data, and image galleries
+- **Dual code system** — both new legal dong codes (`lDongRegnCd`) and legacy area codes (`areaCode`) are supported
+- **14 MCP tools** — one per API operation, with full parameter documentation
 
 ## Prerequisites
 
-- A **Korea Tourism Organization API key** from [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do)
-  - Register for a free account, apply for the "영문 관광정보 서비스" (English Tourism Information Service), and copy the URL-encoded service key from your application page.
-- A [Replit](https://replit.com) account (free tier works)
+- Python 3.11+
+- A KTO Open API key from [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do) (Service ID: `15101753`)
+- Replit account (for deployment)
 
----
+## Installation & Replit Secrets Setup
 
-## Local Setup
+1. **Clone or fork this repository** into your Replit account.
+2. **Obtain your API key** by registering at [https://www.data.go.kr/data/15101753/openapi.do](https://www.data.go.kr/data/15101753/openapi.do).
+3. **Set the Replit Secret** — open the Secrets tab in Replit and add:
 
-### 1. Clone the repository
+   | Secret name | Description |
+   |-------------|-------------|
+   | `VISITKOREA_API_KEY` | URL-encoded service key from data.go.kr — used as `serviceKey` in all API requests |
 
-```bash
-git clone https://github.com/leejaew/visitkorea-mcp.git
-cd visitkorea-mcp
+4. **Install dependencies** (Replit handles this automatically on first run):
+   ```bash
+   pnpm install
+   pip install -r visitkorea-mcp/requirements.txt
+   ```
+5. **Run the server** — click the Run button in Replit or:
+   ```bash
+   pnpm --filter @workspace/api-server run dev
+   ```
+
+The Node.js proxy starts on port `8080`. It spawns the Python MCP server on port `3001`.
+- Landing page: `http://localhost:8080/`
+- Streamable HTTP endpoint: `http://localhost:8080/mcp`
+
+## MCP Connector JSON
+
+Paste this into your AI agent's custom connector settings (Claude AI or Manus AI):
+
+```json
+{
+  "mcpServers": {
+    "visitkorea": {
+      "type": "streamableHttp",
+      "url": "https://<your-repl-name>.replit.app/mcp"
+    }
+  }
+}
 ```
 
-### 2. Install Node.js dependencies
+Replace the URL with your own deployed Replit project URL.
 
-```bash
-npm install -g pnpm
-pnpm install
-```
-
-### 3. Install Python dependencies
-
-```bash
-pip install -r visitkorea-mcp/requirements.txt
-```
-
-### 4. Set the API key environment variable
-
-```bash
-export VISITKOREA_API_KEY="your_url_encoded_service_key_here"
-```
-
-> The service key from data.go.kr is already URL-encoded. Copy it exactly as shown on your application page.
-
-### 5. Run the Python MCP server in stdio mode (for Claude Desktop)
-
-```bash
-python3 visitkorea-mcp/server.py
-```
-
-### 6. Run the Python MCP server in Streamable HTTP mode (for web-based clients)
-
-```bash
-python3 visitkorea-mcp/server.py --http --port 3001
-```
-
-The server will be available at `http://localhost:3001/mcp`.
-
----
-
-## Connecting to Claude AI (claude.ai)
-
-After deploying your own instance to Replit, add a custom connector directly from the claude.ai web interface:
-
-1. Go to [claude.ai](https://claude.ai) → **Settings** → **Connectors** → **Add custom connector**
-2. Fill in the fields as follows:
+### Claude AI (claude.ai) — Custom Connector
 
 | Field | Value |
 |-------|-------|
@@ -130,15 +75,7 @@ After deploying your own instance to Replit, add a custom connector directly fro
 | **OAuth Client ID** | *(leave blank)* |
 | **OAuth Client Secret** | *(leave blank)* |
 
-3. Click **Add**.
-
-> No OAuth credentials are needed — the `VISITKOREA_API_KEY` is stored server-side and never exposed to the client.
-
----
-
-## Connecting to Claude Desktop
-
-For local use without a deployed server, add the following to your Claude Desktop `claude_desktop_config.json`:
+### Claude Desktop — `claude_desktop_config.json`
 
 ```json
 {
@@ -154,141 +91,292 @@ For local use without a deployed server, add the following to your Claude Deskto
 }
 ```
 
-> Replace `/absolute/path/to/visitkorea-mcp/server.py` with the actual path on your machine. The `VISITKOREA_API_KEY` value must be the URL-encoded service key from [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do).
+## Tool Reference
+
+### Tool 1 — `search_tourism_by_area`
+
+List tourism spots filtered by administrative region, content type, and/or category codes.
+
+**Endpoint:** `GET /areaBasedList2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `numOfRows` | int | Optional | Results per page (default: 10, max: 100) |
+| `pageNo` | int | Optional | Page number (default: 1) |
+| `arrange` | string | Optional | Sort: A=title, C=modified, D=created; O/Q/R=image-only variants |
+| `contentTypeId` | string | Optional | Content type ID (see Content Types table) |
+| `lDongRegnCd` | string | Optional | Province/city code |
+| `lDongSignguCd` | string | Optional | District code (requires `lDongRegnCd`) |
+| `lclsSystm1` | string | Optional | Classification level-1 code |
+| `areaCode` | string | Optional | Legacy province code (alternative to `lDongRegnCd`) |
+| `sigunguCode` | string | Optional | Legacy district code (requires `areaCode`) |
+| `cat1` / `cat2` / `cat3` | string | Optional | Legacy category hierarchy codes |
 
 ---
 
-## Connecting to Manus AI
+### Tool 2 — `search_tourism_by_location`
 
-After deploying your own instance to Replit, import the following JSON when adding a new MCP server in Manus AI. Replace `<your-repl-name>` with the actual subdomain of your deployed Replit app.
+Find tourism spots within a GPS radius, sorted by proximity.
 
-```json
-{
-  "mcpServers": {
-    "visitkorea": {
-      "type": "streamableHttp",
-      "url": "https://<your-repl-name>.replit.app/mcp"
-    }
-  }
-}
-```
+**Endpoint:** `GET /locationBasedList2`
 
-> No authentication token is required from the client — the `VISITKOREA_API_KEY` is stored and used server-side only.
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mapX` | float | **Required** | GPS longitude (WGS84) |
+| `mapY` | float | **Required** | GPS latitude (WGS84) |
+| `radius` | int | **Required** | Search radius in metres (max 20,000) |
+| `arrange` | string | Optional | Sort: A/C/D or image variants O/Q/R |
+| `contentTypeId` | string | Optional | Content type filter |
 
 ---
 
-## Deploying to Replit
+### Tool 3 — `search_tourism_by_keyword`
 
-Follow these steps to deploy your own fully functional instance of this MCP server on Replit.
+Full-text keyword search across all tourism content.
 
-> **New to Replit?** Sign up for a free account using this referral link: [https://replit.com/refer/leejaew](https://replit.com/refer/leejaew)
+**Endpoint:** `GET /searchKeyword2`
 
-### Step 1 — Import the repository
-
-1. Go to [replit.com](https://replit.com) and sign in.
-2. Click **Create Repl** → **Import from GitHub**.
-3. Paste the repository URL: `https://github.com/leejaew/visitkorea-mcp`
-4. Replit will detect the workspace configuration automatically.
-
-### Step 2 — Add your API key as a Secret
-
-1. In your Repl, open the **Secrets** panel (lock icon in the sidebar, or Tools → Secrets).
-2. Create a new secret:
-   - **Key:** `VISITKOREA_API_KEY`
-   - **Value:** Your URL-encoded service key from [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do)
-
-> Do not paste the key into any source file. Always use the Secrets panel so it is never committed to version control.
-
-### Step 3 — Run the development server
-
-Click the **Run** button (or press the green Play button). Replit will:
-1. Install all Node.js and Python dependencies automatically.
-2. Build the Node.js proxy server.
-3. Start both the Node.js server (port 8080) and the Python MCP server (port 3001).
-
-### Step 4 — Verify it works
-
-Open the Replit Shell and run:
-
-```bash
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-```
-
-You should receive a JSON response listing all 14 tools.
-
-### Step 5 — Deploy to production
-
-1. Click **Deploy** in the top-right corner of Replit.
-2. Choose **Autoscale** deployment.
-3. Click **Deploy** to publish.
-
-Your MCP server will be publicly accessible at:
-```
-https://<your-repl-name>.replit.app/mcp
-```
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `keyword` | string | **Required** | Search term in English |
+| `contentTypeId` | string | Optional | Content type filter |
+| `lDongRegnCd` | string | Optional | Province/city code filter |
 
 ---
 
-## Environment Variables
+### Tool 4 — `search_festivals_and_events`
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VISITKOREA_API_KEY` | Yes | URL-encoded service key from data.go.kr |
-| `PORT` | Set by Replit | Port for the Node.js proxy (default 8080 in dev, assigned by Replit in production) |
+Search Korean festivals, performances, and cultural events by date range.
+
+**Endpoint:** `GET /searchFestival2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `eventStartDate` | string | **Required** | Start date in YYYYMMDD format |
+| `eventEndDate` | string | Optional | End date in YYYYMMDD format |
+| `lDongRegnCd` | string | Optional | Province/city code filter |
 
 ---
+
+### Tool 5 — `search_accommodations`
+
+Search hotels, pensions, hostels, condominiums, and camping sites.
+
+**Endpoint:** `GET /searchStay2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `lDongRegnCd` | string | Optional | Province/city code |
+| `lDongSignguCd` | string | Optional | District code (requires `lDongRegnCd`) |
+| `numOfRows` | int | Optional | Results per page |
+
+---
+
+### Tool 6 — `get_tourism_common_info`
+
+Fetch complete common detail record for a venue: title, address, GPS, phone, homepage, overview.
+
+**Endpoint:** `GET /detailCommon2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `contentId` | string | **Required** | Content ID from any search result |
+
+---
+
+### Tool 7 — `get_tourism_intro_info`
+
+Fetch type-specific introductory details. Fields vary by `contentTypeId`.
+
+**Endpoint:** `GET /detailIntro2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `contentId` | string | **Required** | Content ID |
+| `contentTypeId` | string | **Required** | Must match the venue's category |
+
+For tourist attractions (type `76`): `accomcount`, `chkcreditcard`, `expagerange`, `infocenter`, `opendate`, `parking`, `restdate`, `useseason`, `usetime`.
+
+---
+
+### Tool 8 — `get_tourism_detail_info`
+
+Fetch repeating structured sub-records: room types for hotels, menu items for restaurants, programme schedules for events.
+
+**Endpoint:** `GET /detailInfo2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `contentId` | string | **Required** | Content ID |
+| `contentTypeId` | string | **Required** | Must match the venue's category |
+
+---
+
+### Tool 9 — `get_tourism_images`
+
+Retrieve all image URLs and copyright types for a venue.
+
+**Endpoint:** `GET /detailImage2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `contentId` | string | **Required** | Content ID |
+| `imageYN` | string | Optional | `Y` = venue photos (default); `N` = food menu images (restaurants only) |
+
+---
+
+### Tool 10 — `get_sync_list`
+
+Retrieve content items updated since a given timestamp — for local cache synchronisation.
+
+**Endpoint:** `GET /areaBasedSyncList2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modifiedtime` | string | Optional | ISO timestamp filter (e.g. `"20260101000000"`) |
+| `contentTypeId` | string | Optional | Content type filter |
+| `areaCode` | string | Optional | Province filter |
+
+---
+
+### Tool 11 — `get_legal_district_codes`
+
+Retrieve legal administrative district codes (`lDongRegnCd`, `lDongSignguCd`) for new-system filtering.
+
+**Endpoint:** `GET /ldongCode2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `areaCode` | string | Optional | Leave empty for all provinces; set to a code for its districts |
+
+---
+
+### Tool 12 — `get_classification_codes`
+
+Browse the new 3-level classification hierarchy (AC=Accommodation, EV=Events, FO=Food, VE=Culture, etc.).
+
+**Endpoint:** `GET /lclsSystmCode2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `lclsSystm1` | string | Optional | Level-1 code (e.g. `AC`, `VE`, `FO`) |
+| `lclsSystm2` | string | Optional | Level-2 code (requires `lclsSystm1`) |
+| `lclsSystmListYn` | string | Optional | `Y` = return full list |
+
+---
+
+### Tool 13 — `get_area_codes`
+
+Look up the legacy area codes (17 provinces) and their district codes (`sigunguCode`).
+
+**Endpoint:** `GET /areaCode2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `areaCode` | string | Optional | Leave empty for province list; set to get districts |
+
+---
+
+### Tool 14 — `get_category_codes`
+
+Browse the legacy 3-level category hierarchy (`cat1`/`cat2`/`cat3`) for content category filtering.
+
+**Endpoint:** `GET /categoryCode2`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `cat1` | string | Optional | Top-level code (e.g. `A01`=Nature, `A02`=Culture) |
+| `cat2` | string | Optional | Second-level code (requires `cat1`) |
+| `contentTypeId` | string | Optional | Filter category codes to a content type |
+
+---
+
+## Content Type Reference
+
+| ID | Category (English) | Category (Korean) |
+|----|--------------------|-------------------|
+| `75` | Leisure / Sports | 레포츠 |
+| `76` | Tourist Attraction | 관광지 |
+| `78` | Cultural Facility | 문화시설 |
+| `79` | Shopping | 쇼핑 |
+| `80` | Accommodation | 숙박 |
+| `82` | Restaurant / Food | 음식점 |
+| `85` | Festival / Performance / Event | 축제공연행사 |
+
+## Province Code Reference (`lDongRegnCd`)
+
+| Code | Province / City |
+|------|----------------|
+| `11` | Seoul (서울) |
+| `26` | Busan (부산) |
+| `27` | Daegu (대구) |
+| `28` | Incheon (인천) |
+| `29` | Gwangju (광주) |
+| `30` | Daejeon (대전) |
+| `31` | Ulsan (울산) |
+| `36` | Sejong (세종) |
+| `41` | Gyeonggi (경기) |
+| `42` | Gangwon (강원) |
+| `43` | Chungbuk (충북) |
+| `44` | Chungnam (충남) |
+| `45` | Jeonbuk (전북) |
+| `46` | Jeonnam (전남) |
+| `47` | Gyeongbuk (경북) |
+| `48` | Gyeongnam (경남) |
+| `50` | Jeju Island (제주) |
+
+## Classification System Codes (`lclsSystm1`)
+
+| Code | Category |
+|------|---------|
+| `AC` | Accommodation |
+| `EV` | Festivals / Performances / Events |
+| `EX` | Experience Tourism |
+| `FO` | Food & Dining |
+| `LC` | Leisure & Sports |
+| `SH` | Shopping |
+| `TR` | Transportation |
+| `VE` | Culture / Arts / History |
+
+## API Key Registration
+
+1. Visit [https://www.data.go.kr/data/15101753/openapi.do](https://www.data.go.kr/data/15101753/openapi.do)
+2. Sign in or create a 공공데이터포털 account
+3. Click **활용신청** (Request API access) on the dataset page
+4. After approval (usually instant), copy your **일반 인증키 (Encoding)** URL-encoded service key from My Page
+5. Add it to Replit Secrets as `VISITKOREA_API_KEY`
+
+> Do not commit the key to any source file. Always store it via the Replit Secrets panel.
 
 ## Project Structure
 
 ```
+visitkorea-mcp/
 ├── visitkorea-mcp/
-│   ├── server.py          # Python MCP server (14 tools, stdio + Streamable HTTP)
+│   ├── server.py          # Python MCP server — 14 tools, stdio + Streamable HTTP
 │   └── requirements.txt   # Python dependencies
 ├── artifacts/
 │   ├── api-server/
 │   │   ├── src/
-│   │   │   ├── app.ts     # Express app — MCP proxy middleware
+│   │   │   ├── app.ts     # Express app — MCP proxy middleware (/mcp)
 │   │   │   ├── index.ts   # Entry point — spawns Python server, starts Express
 │   │   │   └── routes/    # /api/config, /api/health
 │   │   ├── build.mjs      # esbuild bundler config
 │   │   └── package.json
 │   └── landing/
 │       └── src/
-│           └── App.tsx    # React landing page
-├── .replit                # Replit workspace configuration
-├── pnpm-workspace.yaml    # pnpm monorepo configuration
+│           ├── App.tsx              # React landing page
+│           └── MANUS_INSTRUCTIONS.md  # Manus AI usage instructions
+├── pnpm-workspace.yaml
 └── README.md
 ```
 
----
+## Contributing
 
-## Data Source
-
-This project uses the **Korea Tourism Organization English Open Data API**:
-
-- **Portal:** [https://www.data.go.kr/data/15101753/openapi.do](https://www.data.go.kr/data/15101753/openapi.do)
-- **Provider:** Korea Tourism Organization (한국관광공사) via the Korean Public Data Portal (공공데이터포털)
-- **API Base URL:** `https://apis.data.go.kr/B551011/EngService2`
-- **Language:** English
-- **License:** Public Data, free for commercial and non-commercial use with attribution
-
-To obtain an API key:
-1. Visit [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do)
-2. Sign up for a free account
-3. Click **활용신청** (Apply for Use) on the dataset page
-4. After approval (usually instant), copy your **인증키 (Service Key)** — use the URL-encoded version
-
----
+Contributions are welcome. Please open an issue before submitting a pull request. Ensure all changes are tested against the live API and that no API keys are committed to the repository.
 
 ## License
 
-MIT License — open source, free to use, modify, and distribute.
+MIT License — see [LICENSE](LICENSE) for full text.
 
----
-
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Tourism data provided by the **Korea Tourism Organization (KTO)** via the 공공데이터포털 open API platform (`data.go.kr`). Data usage is subject to KTO terms — attribution is required for `Type1` content; `Type3` content additionally prohibits modification.
