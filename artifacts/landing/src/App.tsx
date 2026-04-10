@@ -137,14 +137,23 @@ function CodeBlock({ code, label }: { code: string; label?: string }) {
 }
 
 export default function App() {
-  const [mcpUrl, setMcpUrl] = useState("");
+  const [mcpUrl, setMcpUrl] = useState<string | null>(null);
   const [urlCopied, setUrlCopied] = useState(false);
 
   useEffect(() => {
-    setMcpUrl(`https://${window.location.hostname}/mcp`);
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((data) => {
+        // data.mcpUrl is the production .replit.app URL when deployed; null in dev
+        setMcpUrl(data.mcpUrl ?? null);
+      })
+      .catch(() => {
+        setMcpUrl(null);
+      });
   }, []);
 
   const copyUrl = () => {
+    if (!mcpUrl) return;
     navigator.clipboard.writeText(mcpUrl);
     setUrlCopied(true);
     setTimeout(() => setUrlCopied(false), 2000);
@@ -185,15 +194,17 @@ export default function App() {
           {/* URL row */}
           <div className="flex items-center gap-0 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 text-sm w-full max-w-xl">
             <span className="px-4 py-2.5 text-slate-500 text-xs font-medium border-r border-slate-200 shrink-0">MCP URL</span>
-            <span className="px-4 py-2.5 font-mono text-slate-700 text-xs truncate flex-1">
-              {mcpUrl || "https://{hostname}/mcp"}
+            <span className={`px-4 py-2.5 font-mono text-xs truncate flex-1 ${mcpUrl ? "text-slate-700" : "text-slate-400 italic"}`}>
+              {mcpUrl ?? "available after deployment"}
             </span>
-            <button
-              onClick={copyUrl}
-              className="px-4 py-2.5 border-l border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-white transition-colors cursor-pointer shrink-0"
-            >
-              {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
+            {mcpUrl && (
+              <button
+                onClick={copyUrl}
+                className="px-4 py-2.5 border-l border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-white transition-colors cursor-pointer shrink-0"
+              >
+                {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            )}
           </div>
         </section>
 
@@ -232,7 +243,7 @@ export default function App() {
               <div className="border border-slate-200 rounded-lg overflow-hidden text-sm divide-y divide-slate-100">
                 {[
                   { field: "Name", value: "VisitKorea Tourism", mono: false },
-                  { field: "Remote MCP server URL", value: mcpUrl || "https://{hostname}/mcp", mono: true },
+                  { field: "Remote MCP server URL", value: mcpUrl ?? "https://your-app.replit.app/mcp", mono: true },
                   { field: "OAuth Client ID", value: "leave blank", mono: false, muted: true },
                   { field: "OAuth Client Secret", value: "leave blank", mono: false, muted: true },
                 ].map(({ field, value, mono, muted }) => (
@@ -259,7 +270,7 @@ export default function App() {
             {/* Manus AI */}
             <div>
               <h3 className="text-sm font-medium mb-3 text-slate-700">Manus AI — MCP Connector JSON</h3>
-              <CodeBlock code={MANUS_JSON(mcpUrl || "https://{hostname}/mcp")} label="JSON" />
+              <CodeBlock code={MANUS_JSON(mcpUrl ?? "https://your-app.replit.app/mcp")} label="JSON" />
             </div>
           </div>
         </section>
