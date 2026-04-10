@@ -92,19 +92,6 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function DarkCodeBlock({ label, code }: { label: string; code: string }) {
-  return (
-    <div className="rounded-xl bg-slate-900 text-slate-100 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
-        <span className="text-xs font-medium text-slate-400">{label}</span>
-        <CopyButton text={code} />
-      </div>
-      <pre className="px-4 py-4 text-sm font-mono overflow-x-auto leading-relaxed">
-        <code>{code}</code>
-      </pre>
-    </div>
-  );
-}
 
 export default function App() {
   const [mcpUrl, setMcpUrl] = useState<string | null>(null);
@@ -191,47 +178,46 @@ export default function App() {
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             Connect your AI agent
           </h3>
-          <div className="space-y-6">
+          <div className="space-y-4">
 
-            {/* Claude AI (claude.ai) */}
+            {/* Manus AI / Claude AI — primary connector */}
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Claude AI (claude.ai) — Custom Connector</p>
-              <div className="bg-white border border-border rounded-xl overflow-hidden divide-y divide-border text-sm">
-                {[
-                  { field: "Name", value: "VisitKorea Tourism", mono: false },
-                  { field: "Remote MCP server URL", value: `https://${host}/mcp`, mono: true },
-                  { field: "OAuth Client ID", value: "leave blank", muted: true },
-                  { field: "OAuth Client Secret", value: "leave blank", muted: true },
-                ].map(({ field, value, mono, muted }) => (
-                  <div key={field} className="flex items-center gap-4 px-5 py-3">
-                    <span className="text-xs text-muted-foreground w-52 shrink-0">{field}</span>
-                    <span className={`text-xs flex-1 ${mono ? "font-mono text-primary" : muted ? "text-muted-foreground italic" : "text-foreground"}`}>
-                      {value}
-                    </span>
-                  </div>
-                ))}
+              <p className="text-xs font-medium text-muted-foreground mb-2">Manus AI · Claude AI — Streamable HTTP</p>
+              <div className="rounded-xl bg-slate-900 text-slate-100 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+                  <span className="text-xs font-medium text-slate-400">MCP Connector JSON</span>
+                  <CopyButton text={manusJson} />
+                </div>
+                <pre className="px-4 py-4 text-sm font-mono overflow-x-auto leading-relaxed">
+                  <code>{manusJson}</code>
+                </pre>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">No OAuth credentials needed — the API key is stored server-side.</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Paste this into your AI agent's MCP connector settings. The Streamable HTTP endpoint is at{" "}
+                <code className="bg-muted px-1 py-0.5 rounded">https://{host}/mcp</code>
+              </p>
             </div>
 
             {/* Claude Desktop */}
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">Claude Desktop — claude_desktop_config.json</p>
-              <DarkCodeBlock label="JSON" code={claudeDesktopJson} />
+              <div className="rounded-xl bg-slate-900 text-slate-100 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+                  <span className="text-xs font-medium text-slate-400">JSON</span>
+                  <CopyButton text={claudeDesktopJson} />
+                </div>
+                <pre className="px-4 py-4 text-sm font-mono overflow-x-auto leading-relaxed">
+                  <code>{claudeDesktopJson}</code>
+                </pre>
+              </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 Replace the path with the absolute path to{" "}
                 <code className="bg-muted px-1 py-0.5 rounded">server.py</code> on your machine.
               </p>
             </div>
 
-            {/* Manus AI */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Manus AI — Streamable HTTP</p>
-              <DarkCodeBlock label="MCP Connector JSON" code={manusJson} />
-            </div>
-
             {!isProd && (
-              <p className="text-xs text-amber-600">
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
                 This is the development URL. Deploy the project to get your permanent{" "}
                 <code className="bg-muted px-1 py-0.5 rounded">.replit.app</code> production URL.
               </p>
