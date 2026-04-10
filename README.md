@@ -138,13 +138,29 @@ Add the following to your Claude Desktop `claude_desktop_config.json`:
 
 ## Connecting to Manus AI
 
-After deploying your own instance to Replit (see the deployment steps below), use your own endpoint:
+After deploying your own instance to Replit (see the deployment steps below), import the following JSON when adding a new custom MCP connector in Manus AI. Replace `<your-repl-name>` with the actual subdomain of your deployed Replit app.
 
-```
-https://<your-repl-name>.replit.app/mcp
+```json
+{
+  "name": "visitkorea",
+  "display_name": "VisitKorea Tourism",
+  "description": "Korea Tourism Organization English Open Data API — search attractions, restaurants, hotels, festivals, and more across Korea.",
+  "transport": {
+    "type": "streamable-http",
+    "url": "https://<your-repl-name>.replit.app/mcp"
+  },
+  "authentication": {
+    "type": "none"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "provider": "Korea Tourism Organization (한국관광공사)",
+    "data_source": "https://www.data.go.kr/data/15101753/openapi.do"
+  }
+}
 ```
 
-In Manus AI, add a new MCP server with this URL. No authentication token is required — the API key is handled server-side.
+> **Note:** No authentication token is required from the client — the `VISITKOREA_API_KEY` is stored and used server-side only.
 
 ---
 
