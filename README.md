@@ -116,9 +116,29 @@ The server will be available at `http://localhost:3001/mcp`.
 
 ---
 
+## Connecting to Claude AI (claude.ai)
+
+After deploying your own instance to Replit, add a custom connector directly from the claude.ai web interface:
+
+1. Go to [claude.ai](https://claude.ai) → **Settings** → **Connectors** → **Add custom connector**
+2. Fill in the fields as follows:
+
+| Field | Value |
+|-------|-------|
+| **Name** | `VisitKorea Tourism` |
+| **Remote MCP server URL** | `https://<your-repl-name>.replit.app/mcp` |
+| **OAuth Client ID** | *(leave blank)* |
+| **OAuth Client Secret** | *(leave blank)* |
+
+3. Click **Add**.
+
+> No OAuth credentials are needed — the `VISITKOREA_API_KEY` is stored server-side and never exposed to the client.
+
+---
+
 ## Connecting to Claude Desktop
 
-Add the following to your Claude Desktop `claude_desktop_config.json`:
+For local use without a deployed server, add the following to your Claude Desktop `claude_desktop_config.json`:
 
 ```json
 {
@@ -133,6 +153,8 @@ Add the following to your Claude Desktop `claude_desktop_config.json`:
   }
 }
 ```
+
+> Replace `/absolute/path/to/visitkorea-mcp/server.py` with the actual path on your machine. The `VISITKOREA_API_KEY` value must be the URL-encoded service key from [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do).
 
 ---
 
