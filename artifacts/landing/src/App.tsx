@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ExternalLink, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { marked } from "marked";
 import manusInstructions from "./MANUS_INSTRUCTIONS.md?raw";
 
@@ -331,25 +331,26 @@ export default function App() {
           </div>
         </section>
 
-        {/* Links */}
-        <div className="flex items-center gap-4 pb-2">
+        {/* Footer links */}
+        <section className="text-center py-4 border-t border-border">
           <a
             href="https://www.data.go.kr/data/15101753/openapi.do"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            className="text-sm text-primary hover:underline"
           >
-            data.go.kr API Reference <ExternalLink className="w-3 h-3" />
+            data.go.kr API Reference →
           </a>
+          <span className="mx-3 text-muted-foreground">·</span>
           <a
             href="https://github.com/leejaew/visitkorea-mcp"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            className="text-sm text-primary hover:underline"
           >
-            GitHub <ExternalLink className="w-3 h-3" />
+            GitHub →
           </a>
-        </div>
+        </section>
 
       </main>
     </div>
