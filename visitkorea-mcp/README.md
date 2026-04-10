@@ -1,6 +1,6 @@
 # VisitKorea MCP Server
 
-A Python-based **Model Context Protocol (MCP) server** that connects AI agents — such as Claude (Anthropic) and Manus AI — with the **Korea Tourism Organization English Open Data API** (`data.go.kr`).
+A Python-based **Model Context Protocol (MCP) server** that connects AI agents — such as Claude and Manus AI — with the **Korea Tourism Organization English Open Data API** (`data.go.kr`).
 
 This server enables AI agents to search for Korean tourism attractions, accommodations, restaurants, events, festivals, and more — all in English.
 
@@ -43,7 +43,7 @@ Both systems work. The new legal dong code system is recommended for precise fil
 - **Python 3.11+**
 - A **Korea Tourism Organization API key** from [data.go.kr](https://data.go.kr/)
   - Register at `https://data.go.kr/` and apply for the `한국관광공사_영문_관광정보서비스` API
-  - Your service key (URL-encoded format) will be emailed to you
+  - Your URL-encoded service key will be available in your application page immediately after approval
 
 ---
 
@@ -57,7 +57,7 @@ pip install -r requirements.txt
 
 ### 2. Set your API key
 
-Set the `VISITKOREA_API_KEY` environment variable to your service key from data.go.kr:
+Set the `VISITKOREA_API_KEY` environment variable to your URL-encoded service key from data.go.kr:
 
 ```bash
 export VISITKOREA_API_KEY="your_url_encoded_service_key_here"
@@ -69,21 +69,13 @@ export VISITKOREA_API_KEY="your_url_encoded_service_key_here"
 
 ## Running the Server
 
-### stdio mode (default) — for Claude Desktop, Manus AI stdio config
+### stdio mode (default) — for Claude Desktop and local use
 
 ```bash
 python3 server.py
 ```
 
-### SSE mode — for SSE-based MCP clients
-
-```bash
-python3 server.py --sse --port 3000
-```
-
-Server available at: `http://localhost:3000/sse`
-
-### Streamable HTTP mode — for HTTP-based MCP clients
+### Streamable HTTP mode — for remote/web-based MCP clients
 
 ```bash
 python3 server.py --http --port 3001
@@ -115,50 +107,20 @@ Server available at: `http://localhost:3001/mcp`
 
 ---
 
-### Manus AI — stdio mode
+### Manus AI — Streamable HTTP (run server first with `--http`)
 
 ```json
 {
   "mcpServers": {
     "visitkorea": {
-      "command": "python3",
-      "args": ["/absolute/path/to/visitkorea-mcp/server.py"],
-      "env": {
-        "VISITKOREA_API_KEY": "your_url_encoded_service_key_here"
-      }
-    }
-  }
-}
-```
-
-### Manus AI — SSE mode (run server first with `--sse`)
-
-```json
-{
-  "mcpServers": {
-    "visitkorea-sse": {
-      "type": "sse",
-      "url": "http://localhost:3000/sse"
-    }
-  }
-}
-```
-
-### Manus AI — Streamable HTTP mode (run server first with `--http`)
-
-```json
-{
-  "mcpServers": {
-    "visitkorea-http": {
       "type": "streamableHttp",
-      "url": "http://localhost:3001/mcp",
-      "headers": {
-        "Content-Type": "application/json"
-      }
+      "url": "http://localhost:3001/mcp"
     }
   }
 }
 ```
+
+> To connect to the hosted Replit deployment instead, use `https://<your-repl-name>.replit.app/mcp` as the URL.
 
 ---
 
@@ -218,7 +180,6 @@ This server wraps the **한국관광공사 영문 관광정보서비스 v4.4** A
 - API Provider: Korea Tourism Organization (한국관광공사)
 - API Portal: [https://data.go.kr/](https://data.go.kr/)
 - Base URL: `https://apis.data.go.kr/B551011/EngService2/`
-- Data Portal Guide: [https://english.visitkorea.or.kr/](https://english.visitkorea.or.kr/)
 
 ### Operations implemented
 
@@ -233,6 +194,8 @@ This server wraps the **한국관광공사 영문 관광정보서비스 v4.4** A
 | 7 | `detailIntro2` | `get_tourism_intro_info` |
 | 8 | `detailInfo2` | `get_tourism_detail_info` |
 | 9 | `detailImage2` | `get_tourism_images` |
-| 10 | `syncList2` | `get_sync_list` |
+| 10 | `areaBasedSyncList2` | `get_sync_list` |
 | 11 | `ldongCode2` | `get_legal_district_codes` |
 | 12 | `lclsSystmCode2` | `get_classification_codes` |
+| 13 | `areaCode2` | `get_area_codes` |
+| 14 | `categoryCode2` | `get_category_codes` |
