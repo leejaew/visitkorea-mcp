@@ -54,21 +54,39 @@ app.use(
 );
 app.use(cors());
 
-app.use("/mcp", async (_req: Request, res: Response, next: NextFunction) => {
+const waitForPython = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     await pythonReady;
     next();
   } catch {
     res.status(503).json({ error: "MCP server unavailable" });
   }
-});
+};
 
+// Streamable HTTP transport — used by Claude AI (claude.ai) custom connector
+app.use("/mcp", waitForPython);
 app.use(
   "/mcp",
   createProxyMiddleware({
     target: "http://localhost:3001",
     changeOrigin: false,
     pathRewrite: { "^/": "/mcp" },
+  }),
+);
+
+// SSE transport — default for Manus AI and other SSE-based MCP clients
+app.use(["/sse", "/messages"], waitForPython);
+app.use(
+  ["/sse", "/messages"],
+  createProxyMiddleware({
+    target: "http://localhost:3001",
+    changeOrigin: false,
+    on: {
+      proxyReq: (proxyReq) => {
+        // Remove compression to keep SSE stream intact
+        proxyReq.removeHeader("accept-encoding");
+      },
+    },
   }),
 );
 
