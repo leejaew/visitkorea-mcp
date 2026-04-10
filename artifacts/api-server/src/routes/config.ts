@@ -20,8 +20,12 @@ router.get("/config", (_req, res) => {
 
   const productionDomain = domains.find((d) => d.endsWith(".replit.app")) ?? null;
 
+  // Also expose the best-available host for display purposes even in dev
+  const bestHost = productionDomain ?? domains[0] ?? null;
+
   return res.json({
     mcpUrl: productionDomain ? `https://${productionDomain}/mcp` : null,
+    host: bestHost,
   });
 });
 
