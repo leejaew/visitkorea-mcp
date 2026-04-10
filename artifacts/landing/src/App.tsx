@@ -207,6 +207,30 @@ export default function App() {
           </div>
         </section>
 
+        {/* Meta */}
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white border border-border rounded-xl px-5 py-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Data Owner</p>
+            <p className="text-sm font-medium text-foreground">Korea Tourism Organization</p>
+            <p className="text-xs text-muted-foreground mt-0.5">KTO (한국관광공사)</p>
+          </div>
+          <div className="bg-white border border-border rounded-xl px-5 py-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">API Provider</p>
+            <p className="text-sm font-medium text-foreground">data.go.kr</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Korea Public Data Portal</p>
+          </div>
+          <div className="bg-white border border-border rounded-xl px-5 py-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Refresh Cycle</p>
+            <p className="text-sm font-medium text-foreground">Real-time</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Live API calls on every request</p>
+          </div>
+          <div className="bg-white border border-border rounded-xl px-5 py-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Transport</p>
+            <p className="text-sm font-medium text-foreground">Streamable HTTP</p>
+            <p className="text-xs text-muted-foreground mt-0.5">MCP protocol · MIT License</p>
+          </div>
+        </section>
+
         {/* Manus AI Instructions (collapsible) */}
         <section>
           <button
@@ -250,30 +274,6 @@ export default function App() {
               />
             </div>
           )}
-        </section>
-
-        {/* Meta */}
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white border border-border rounded-xl px-5 py-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Data Owner</p>
-            <p className="text-sm font-medium text-foreground">Korea Tourism Organization</p>
-            <p className="text-xs text-muted-foreground mt-0.5">KTO (한국관광공사)</p>
-          </div>
-          <div className="bg-white border border-border rounded-xl px-5 py-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">API Provider</p>
-            <p className="text-sm font-medium text-foreground">data.go.kr</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Korea Public Data Portal</p>
-          </div>
-          <div className="bg-white border border-border rounded-xl px-5 py-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Refresh Cycle</p>
-            <p className="text-sm font-medium text-foreground">Real-time</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Live API calls on every request</p>
-          </div>
-          <div className="bg-white border border-border rounded-xl px-5 py-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Transport</p>
-            <p className="text-sm font-medium text-foreground">Streamable HTTP</p>
-            <p className="text-xs text-muted-foreground mt-0.5">MCP protocol · MIT License</p>
-          </div>
         </section>
 
         {/* Footer links */}
