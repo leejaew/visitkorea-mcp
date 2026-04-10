@@ -246,8 +246,11 @@ export default function App() {
 
         {/* Manus AI Instructions (collapsible) */}
         <section>
-          <button
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => setIsManusOpen((v) => !v)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsManusOpen((v) => !v); }}
             aria-expanded={isManusOpen}
             className="w-full flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 cursor-pointer text-left hover:bg-muted/50 transition-colors"
           >
@@ -266,7 +269,7 @@ export default function App() {
               variant="light"
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             />
-          </button>
+          </div>
 
           {isManusOpen && (
             <div className="mt-2 bg-white border border-border rounded-xl px-9 py-8 manus-content">
