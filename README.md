@@ -1,6 +1,6 @@
 # VisitKorea MCP Server
 
-An open-source [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that connects AI agents — including Claude Desktop and Manus AI — to the **Korea Tourism Organization (KTO) English Open Data API**. Ask any MCP-compatible AI about Korean tourist attractions, restaurants, accommodations, festivals, and more, in English.
+An open-source [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that connects AI agents — including Claude Desktop, Claude AI, and Manus AI — to the **Korea Tourism Organization (KTO) English Open Data API**. Ask any MCP-compatible AI about Korean tourist attractions, restaurants, accommodations, festivals, and more, in English.
 
 **API Data Source:** [Korea Tourism Organization English Open API](https://www.data.go.kr/data/15101753/openapi.do)
 > This is also where you apply for and obtain your API key.
@@ -10,8 +10,8 @@ An open-source [Model Context Protocol (MCP)](https://modelcontextprotocol.io) s
 ## Architecture
 
 ```
-AI Agent (Claude / Manus AI)
-        │  MCP over HTTP (Streamable HTTP)
+AI Agent (Claude AI / Manus AI)
+        │  MCP over Streamable HTTP
         ▼
 Node.js Express Proxy  (port 8080, path /mcp)
         │  localhost:3001
@@ -65,7 +65,7 @@ The Node.js server acts as the public-facing entry point (handling Replit's rout
 ## Prerequisites
 
 - A **Korea Tourism Organization API key** from [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do)
-  - Register for a free account, apply for the "영문 관광정보 서비스" (English Tourism Information Service), and copy the URL-encoded service key from your application.
+  - Register for a free account, apply for the "영문 관광정보 서비스" (English Tourism Information Service), and copy the URL-encoded service key from your application page.
 - A [Replit](https://replit.com) account (free tier works)
 
 ---
@@ -75,8 +75,8 @@ The Node.js server acts as the public-facing entry point (handling Replit's rout
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/leejaew/custom-visitkorea-mcp.git
-cd custom-visitkorea-mcp
+git clone https://github.com/leejaew/visitkorea-mcp.git
+cd visitkorea-mcp
 ```
 
 ### 2. Install Node.js dependencies
@@ -100,13 +100,13 @@ export VISITKOREA_API_KEY="your_url_encoded_service_key_here"
 
 > The service key from data.go.kr is already URL-encoded. Copy it exactly as shown on your application page.
 
-### 5. Run the Python MCP server directly (stdio mode — for Claude Desktop)
+### 5. Run the Python MCP server in stdio mode (for Claude Desktop)
 
 ```bash
 python3 visitkorea-mcp/server.py
 ```
 
-### 6. Run the Python MCP server in HTTP mode (for web-based clients)
+### 6. Run the Python MCP server in Streamable HTTP mode (for web-based clients)
 
 ```bash
 python3 visitkorea-mcp/server.py --http --port 3001
@@ -160,29 +160,20 @@ For local use without a deployed server, add the following to your Claude Deskto
 
 ## Connecting to Manus AI
 
-After deploying your own instance to Replit (see the deployment steps below), import the following JSON when adding a new custom MCP connector in Manus AI. Replace `<your-repl-name>` with the actual subdomain of your deployed Replit app.
+After deploying your own instance to Replit, import the following JSON when adding a new MCP server in Manus AI. Replace `<your-repl-name>` with the actual subdomain of your deployed Replit app.
 
 ```json
 {
-  "name": "visitkorea",
-  "display_name": "VisitKorea Tourism",
-  "description": "Korea Tourism Organization English Open Data API — search attractions, restaurants, hotels, festivals, and more across Korea.",
-  "transport": {
-    "type": "streamable-http",
-    "url": "https://<your-repl-name>.replit.app/mcp"
-  },
-  "authentication": {
-    "type": "none"
-  },
-  "metadata": {
-    "version": "1.0.0",
-    "provider": "Korea Tourism Organization (한국관광공사)",
-    "data_source": "https://www.data.go.kr/data/15101753/openapi.do"
+  "mcpServers": {
+    "visitkorea": {
+      "type": "streamableHttp",
+      "url": "https://<your-repl-name>.replit.app/mcp"
+    }
   }
 }
 ```
 
-> **Note:** No authentication token is required from the client — the `VISITKOREA_API_KEY` is stored and used server-side only.
+> No authentication token is required from the client — the `VISITKOREA_API_KEY` is stored and used server-side only.
 
 ---
 
@@ -196,7 +187,7 @@ Follow these steps to deploy your own fully functional instance of this MCP serv
 
 1. Go to [replit.com](https://replit.com) and sign in.
 2. Click **Create Repl** → **Import from GitHub**.
-3. Paste the repository URL: `https://github.com/leejaew/custom-visitkorea-mcp`
+3. Paste the repository URL: `https://github.com/leejaew/visitkorea-mcp`
 4. Replit will detect the workspace configuration automatically.
 
 ### Step 2 — Add your API key as a Secret
@@ -222,7 +213,7 @@ Open the Replit Shell and run:
 ```bash
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
@@ -254,26 +245,19 @@ https://<your-repl-name>.replit.app/mcp
 
 ```
 ├── visitkorea-mcp/
-│   ├── server.py          # Python MCP server (all 14 tools)
+│   ├── server.py          # Python MCP server (14 tools, stdio + Streamable HTTP)
 │   └── requirements.txt   # Python dependencies
 ├── artifacts/
-│   └── api-server/
-│       ├── src/
-│       │   ├── app.ts     # Express app with wait middleware + MCP proxy
-│       │   ├── index.ts   # Entry point — spawns Python server, starts Express
-│       │   ├── lib/
-│       │   │   └── logger.ts
-│       │   └── routes/
-│       │       ├── index.ts
-│       │       └── health.ts
-│       ├── build.mjs      # esbuild bundler config
-│       ├── package.json
-│       └── tsconfig.json
-├── lib/                   # Shared TypeScript libraries
-│   ├── api-spec/          # OpenAPI specification
-│   ├── api-zod/           # Generated Zod schemas
-│   ├── db/                # Drizzle ORM database layer
-│   └── api-client-react/  # Generated React hooks
+│   ├── api-server/
+│   │   ├── src/
+│   │   │   ├── app.ts     # Express app — MCP proxy middleware
+│   │   │   ├── index.ts   # Entry point — spawns Python server, starts Express
+│   │   │   └── routes/    # /api/config, /api/health
+│   │   ├── build.mjs      # esbuild bundler config
+│   │   └── package.json
+│   └── landing/
+│       └── src/
+│           └── App.tsx    # React landing page
 ├── .replit                # Replit workspace configuration
 ├── pnpm-workspace.yaml    # pnpm monorepo configuration
 └── README.md
