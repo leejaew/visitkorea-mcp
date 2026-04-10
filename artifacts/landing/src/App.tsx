@@ -1,244 +1,313 @@
 import { useState, useEffect } from "react";
-import { Check, Copy, Activity, Code, Server, Map, Globe, Cpu, LayoutList, LocateFixed, Search, LayoutGrid, Clock, Image as ImageIcon, MapPin, Hash } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { Toaster } from "@/components/ui/toaster";
-import { motion } from "framer-motion";
+import { Check, Copy, ExternalLink } from "lucide-react";
 
-const tools = [
-  { id: 1, name: "search_festivals", description: "Search festivals and cultural events by area and date range", icon: Globe },
-  { id: 2, name: "search_attractions", description: "Find tourist attractions by area and category", icon: Map },
-  { id: 3, name: "search_accommodations", description: "Find hotels and lodging options by area", icon: Server },
-  { id: 4, name: "search_restaurants", description: "Find dining options by area and cuisine type", icon: Globe },
-  { id: 5, name: "search_shopping", description: "Find shopping areas and markets by area", icon: MapPin },
-  { id: 6, name: "search_leisure", description: "Find leisure and sports activities by area", icon: Activity },
-  { id: 7, name: "get_area_based_list", description: "Get paginated list of any content type filtered by area", icon: LayoutList },
-  { id: 8, name: "get_location_based_list", description: "Find attractions within a GPS radius (WGS84 coordinates)", icon: LocateFixed },
-  { id: 9, name: "search_by_keyword", description: "Search across all content types by keyword", icon: Search },
-  { id: 10, name: "get_detail_common", description: "Get title, address, GPS coordinates, phone, homepage, and overview", icon: LayoutGrid },
-  { id: 11, name: "get_detail_intro", description: "Get opening hours, admission fees, rest days, and parking info", icon: Clock },
-  { id: 12, name: "get_detail_image", description: "Get image gallery for an attraction", icon: ImageIcon },
-  { id: 13, name: "get_nearby_attractions", description: "Get nearby attractions within a given radius", icon: LocateFixed },
-  { id: 14, name: "get_area_codes", description: "Get area and sub-area codes used for filtering queries", icon: Hash }
+const TOOLS = [
+  {
+    name: "search_tourism_by_area",
+    operation: "areaBasedList2",
+    desc: "Search tourism attractions, restaurants, accommodations, shopping, cultural facilities, leisure spots, and festivals by province or city.",
+  },
+  {
+    name: "search_tourism_by_location",
+    operation: "locationBasedList2",
+    desc: "Find tourism content within a GPS radius using WGS84 coordinates. Supports all content types.",
+  },
+  {
+    name: "search_tourism_by_keyword",
+    operation: "searchKeyword2",
+    desc: "Search across all tourism content types by keyword. Returns matching places, events, and facilities.",
+  },
+  {
+    name: "search_festivals_and_events",
+    operation: "searchFestival2",
+    desc: "Search festivals, performances, and cultural events by date range and area.",
+  },
+  {
+    name: "search_accommodations",
+    operation: "searchStay2",
+    desc: "Search hotels, guesthouses, pensions, and other accommodation by area.",
+  },
+  {
+    name: "get_tourism_common_info",
+    operation: "detailCommon2",
+    desc: "Fetch common details for a content ID: title, address, GPS coordinates, phone, homepage URL, and overview text.",
+  },
+  {
+    name: "get_tourism_intro_info",
+    operation: "detailIntro2",
+    desc: "Fetch introductory details: opening hours, admission fees, rest days, parking, and type-specific intro fields.",
+  },
+  {
+    name: "get_tourism_detail_info",
+    operation: "detailInfo2",
+    desc: "Fetch detailed type-specific information (e.g. room types for accommodation, menu items for restaurants).",
+  },
+  {
+    name: "get_tourism_images",
+    operation: "detailImage2",
+    desc: "Get image gallery for an attraction. imageYN=Y returns venue photos; N returns food menu photos (restaurant type only).",
+  },
+  {
+    name: "get_sync_list",
+    operation: "areaBasedSyncList2",
+    desc: "Retrieve content updated since a given modification timestamp. Useful for syncing cached data.",
+  },
+  {
+    name: "get_legal_district_codes",
+    operation: "ldongCode2",
+    desc: "Look up legal district codes (lDongRegnCd / lDongSignguCd) by province, city, or county name.",
+  },
+  {
+    name: "get_classification_codes",
+    operation: "lclsSystmCode2",
+    desc: "Retrieve the tourism classification system code hierarchy (3 levels). Use lclsSystmListYn=Y for full list.",
+  },
+  {
+    name: "get_area_codes",
+    operation: "areaCode2",
+    desc: "Get area codes and sub-area (sigungu) codes used for areaCode-based filtering queries.",
+  },
+  {
+    name: "get_category_codes",
+    operation: "categoryCode2",
+    desc: "Get category hierarchy codes (cat1 / cat2 / cat3) for filtering by tourism content category.",
+  },
 ];
 
-export default function App() {
-  const [copiedUrl, setCopiedUrl] = useState(false);
-  const [mcpUrl, setMcpUrl] = useState("");
-
-  useEffect(() => {
-    setMcpUrl(`https://${window.location.hostname}/mcp`);
-  }, []);
-
-  const copyToClipboard = (text: string, setter: (val: boolean) => void) => {
-    navigator.clipboard.writeText(text);
-    setter(true);
-    setTimeout(() => setter(false), 2000);
-  };
-
-  return (
-    <TooltipProvider>
-      <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-blue-100">
-        
-        {/* Navigation */}
-        <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200/50">
-          <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold">
-                <Map className="w-4 h-4" />
-              </div>
-              <span className="font-semibold tracking-tight">VisitKorea MCP</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex gap-1.5 items-center">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Server Live
-              </Badge>
-            </div>
-          </div>
-        </nav>
-
-        {/* Hero Section */}
-        <section className="pt-40 pb-20 px-6 min-h-[90vh] flex flex-col justify-center relative overflow-hidden">
-          <div className="absolute inset-0 z-0">
-            <img src="/hero-bg.png" alt="Korean architectural tech abstract background" className="w-full h-full object-cover opacity-15" />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-white/80 to-white" />
-            <div className="absolute inset-0 bg-slate-50/50 mix-blend-multiply" />
-          </div>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="max-w-4xl mx-auto text-center relative z-10"
-          >
-            <Badge variant="outline" className="mb-6 px-4 py-1.5 rounded-full border-blue-200 bg-blue-50 text-blue-700 tracking-wide font-medium">
-              v1.0 • Streamable HTTP
-            </Badge>
-            <h1 className="text-6xl md:text-8xl font-bold tracking-tight text-slate-900 leading-[1.05] mb-8">
-              Korea Tourism <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-indigo-600 to-red-600">for AI Agents.</span>
-            </h1>
-            <p className="text-xl text-slate-600 mb-12 leading-relaxed max-w-2xl mx-auto font-medium">
-              A high-performance Model Context Protocol (MCP) server wrapping the Korea Tourism Organization's English Open API.
-            </p>
-
-            <div className="p-1.5 rounded-2xl bg-white/60 backdrop-blur-xl border border-slate-200/60 inline-flex max-w-full shadow-xl shadow-blue-900/5">
-              <div className="flex items-center bg-white rounded-xl border border-slate-200/80 overflow-hidden w-full max-w-lg">
-                <div className="px-5 py-4 bg-slate-50/80 border-r border-slate-200/80 text-slate-500 flex items-center font-medium">
-                  <Server className="w-4 h-4 mr-2.5 text-blue-600" />
-                  URL
-                </div>
-                <div className="px-5 py-4 font-mono text-sm text-slate-700 truncate flex-1 min-w-[200px] text-left">
-                  {mcpUrl || "Loading..."}
-                </div>
-                <button 
-                  onClick={() => copyToClipboard(mcpUrl, setCopiedUrl)}
-                  className="px-6 py-4 text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition-all flex items-center border-l border-slate-200/80 h-full cursor-pointer group"
-                >
-                  {copiedUrl ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 group-hover:scale-110 transition-transform" />}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </section>
-
-        {/* Tools Section */}
-        <section className="py-24 bg-slate-50 border-y border-slate-200/50 px-6">
-          <div className="max-w-6xl mx-auto">
-            <div className="mb-16">
-              <h2 className="text-3xl font-bold mb-4 tracking-tight">14 Powerful Tools</h2>
-              <p className="text-slate-600 max-w-2xl text-lg">Comprehensive access to festivals, accommodations, restaurants, and precise location-based discovery. Everything an AI needs to plan a trip to Korea.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {tools.map((tool, i) => (
-                <motion.div
-                  key={tool.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.05, duration: 0.4 }}
-                >
-                  <Card className="h-full border-slate-200/60 shadow-sm hover:shadow-md transition-shadow bg-white">
-                    <CardHeader className="pb-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4 text-blue-600">
-                        <tool.icon className="w-5 h-5" />
-                      </div>
-                      <CardTitle className="font-mono text-sm tracking-tight text-slate-900">{tool.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <CardDescription className="text-slate-600 text-sm leading-relaxed">
-                        {tool.description}
-                      </CardDescription>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Connections Section */}
-        <section className="py-24 px-6 max-w-4xl mx-auto">
-          <div className="mb-16 text-center">
-            <h2 className="text-3xl font-bold mb-4 tracking-tight">Connect your Agent</h2>
-            <p className="text-slate-600 text-lg">Streamable HTTP setup instructions for popular AI platforms.</p>
-          </div>
-
-          <div className="space-y-12">
-            {/* Claude AI */}
-            <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
-                <div className="w-6 h-6 rounded bg-[#D97757] flex items-center justify-center text-white text-xs font-bold">C</div>
-                <h3 className="font-semibold text-lg">Claude AI (claude.ai)</h3>
-              </div>
-              <div className="p-6">
-                <p className="text-slate-600 mb-4 text-sm">Add a custom connector with the following details:</p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left border-collapse">
-                    <tbody>
-                      <tr className="border-b border-slate-100">
-                        <th className="py-3 pr-4 font-medium text-slate-900 w-1/3">Name</th>
-                        <td className="py-3 font-mono text-slate-600">VisitKorea Tourism</td>
-                      </tr>
-                      <tr className="border-b border-slate-100">
-                        <th className="py-3 pr-4 font-medium text-slate-900">Remote MCP server URL</th>
-                        <td className="py-3 font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block mt-2 mb-2">{mcpUrl || "https://{hostname}/mcp"}</td>
-                      </tr>
-                      <tr>
-                        <th className="py-3 pr-4 font-medium text-slate-900">OAuth fields</th>
-                        <td className="py-3 text-slate-500 italic">leave blank</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            {/* Claude Desktop */}
-            <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
-                <div className="w-6 h-6 rounded bg-slate-900 flex items-center justify-center text-white"><Cpu className="w-3.5 h-3.5" /></div>
-                <h3 className="font-semibold text-lg">Claude Desktop</h3>
-              </div>
-              <div className="p-6">
-                <p className="text-slate-600 mb-4 text-sm">Add this to your <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">claude_desktop_config.json</code>:</p>
-                <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto text-sm font-mono leading-relaxed">
-{`{
+const CLAUDE_DESKTOP_JSON = `{
   "mcpServers": {
     "visitkorea": {
       "command": "python3",
       "args": ["/absolute/path/to/visitkorea-mcp/server.py"],
-      "env": { "VISITKOREA_API_KEY": "your_url_encoded_service_key_here" }
+      "env": {
+        "VISITKOREA_API_KEY": "your_url_encoded_service_key_here"
+      }
     }
   }
-}`}
-                </pre>
-              </div>
-            </div>
+}`;
 
-            {/* Manus AI */}
-            <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
-                <div className="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white"><Code className="w-3.5 h-3.5" /></div>
-                <h3 className="font-semibold text-lg">Manus AI</h3>
-              </div>
-              <div className="p-6">
-                <p className="text-slate-600 mb-4 text-sm">Import this JSON connector configuration. Replace <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">{`{hostname}`}</code> with your actual hostname in the URL.</p>
-                <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto text-sm font-mono leading-relaxed">
-{`{
+const MANUS_JSON = (url: string) => `{
   "name": "visitkorea",
   "qualifiedName": "visitkorea",
-  "description": "VisitKorea Tourism MCP — access Korea Tourism Organization's Open API through 14 MCP tools covering attractions, restaurants, accommodations, festivals, and more.",
-  "logoUrl": "",
+  "description": "VisitKorea Tourism MCP — 14 tools covering attractions, restaurants, accommodations, festivals, and more via Korea Tourism Organization Open API.",
   "category": "travel",
   "tools": [],
   "connections": [
     {
       "type": "streamable_http",
-      "url": "${mcpUrl || "https://{hostname}/mcp"}",
+      "url": "${url}",
       "config": {},
       "security": {},
       "externalDocs": null
     }
   ]
-}`}
-                </pre>
+}`;
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+function CodeBlock({ code, label }: { code: string; label?: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 overflow-hidden text-sm">
+      {label && (
+        <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
+          <span className="text-xs font-medium text-slate-500 tracking-wide">{label}</span>
+          <CopyButton text={code} />
+        </div>
+      )}
+      <pre className="p-4 bg-slate-900 text-slate-100 font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre">
+        {code}
+      </pre>
+    </div>
+  );
+}
+
+export default function App() {
+  const [mcpUrl, setMcpUrl] = useState("");
+  const [urlCopied, setUrlCopied] = useState(false);
+
+  useEffect(() => {
+    setMcpUrl(`https://${window.location.hostname}/mcp`);
+  }, []);
+
+  const copyUrl = () => {
+    navigator.clipboard.writeText(mcpUrl);
+    setUrlCopied(true);
+    setTimeout(() => setUrlCopied(false), 2000);
+  };
+
+  return (
+    <div className="min-h-screen bg-white text-slate-900 font-sans antialiased">
+
+      {/* Top bar */}
+      <header className="border-b border-slate-200 bg-white sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded bg-blue-600 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-white" stroke="currentColor" strokeWidth={2}>
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                <circle cx="12" cy="9" r="2.5" />
+              </svg>
+            </div>
+            <span className="font-semibold text-sm tracking-tight">visitkorea-mcp</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+            Live · Streamable HTTP
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-12 space-y-16">
+
+        {/* Intro */}
+        <section>
+          <h1 className="text-2xl font-bold tracking-tight mb-2">VisitKorea Tourism MCP</h1>
+          <p className="text-slate-500 text-sm mb-6">
+            AI-ready access to Korea's general tourism data — attractions, restaurants, accommodations, festivals, and more,
+            via the Korea Tourism Organization English Open API.
+          </p>
+
+          {/* URL row */}
+          <div className="flex items-center gap-0 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 text-sm w-full max-w-xl">
+            <span className="px-4 py-2.5 text-slate-500 text-xs font-medium border-r border-slate-200 shrink-0">MCP URL</span>
+            <span className="px-4 py-2.5 font-mono text-slate-700 text-xs truncate flex-1">
+              {mcpUrl || "https://{hostname}/mcp"}
+            </span>
+            <button
+              onClick={copyUrl}
+              className="px-4 py-2.5 border-l border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-white transition-colors cursor-pointer shrink-0"
+            >
+              {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </section>
+
+        {/* Tools */}
+        <section>
+          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+            {TOOLS.length} Tools
+            <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">EngService2</span>
+          </h2>
+          <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100">
+            {TOOLS.map((tool, i) => (
+              <div key={tool.name} className="flex gap-4 px-4 py-3 hover:bg-slate-50 transition-colors">
+                <span className="text-xs text-slate-300 font-mono w-6 shrink-0 pt-0.5 text-right select-none">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-3 flex-wrap">
+                    <span className="font-mono text-sm font-medium text-slate-900">{tool.name}</span>
+                    <span className="font-mono text-xs text-slate-400">{tool.operation}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{tool.desc}</p>
+                </div>
               </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Connect */}
+        <section>
+          <h2 className="text-base font-semibold mb-6">Connect your AI agent</h2>
+          <div className="space-y-8">
+
+            {/* Claude AI */}
+            <div>
+              <h3 className="text-sm font-medium mb-3 text-slate-700">Claude AI (claude.ai) — Custom Connector</h3>
+              <div className="border border-slate-200 rounded-lg overflow-hidden text-sm divide-y divide-slate-100">
+                {[
+                  { field: "Name", value: "VisitKorea Tourism", mono: false },
+                  { field: "Remote MCP server URL", value: mcpUrl || "https://{hostname}/mcp", mono: true },
+                  { field: "OAuth Client ID", value: "leave blank", mono: false, muted: true },
+                  { field: "OAuth Client Secret", value: "leave blank", mono: false, muted: true },
+                ].map(({ field, value, mono, muted }) => (
+                  <div key={field} className="flex items-center gap-4 px-4 py-2.5 bg-white">
+                    <span className="text-xs text-slate-500 w-48 shrink-0">{field}</span>
+                    <span className={`text-xs flex-1 ${mono ? "font-mono text-blue-700" : muted ? "text-slate-400 italic" : "text-slate-700"}`}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 mt-2">No OAuth credentials needed — the API key is stored server-side.</p>
+            </div>
+
+            {/* Claude Desktop */}
+            <div>
+              <h3 className="text-sm font-medium mb-3 text-slate-700">Claude Desktop — claude_desktop_config.json</h3>
+              <CodeBlock code={CLAUDE_DESKTOP_JSON} label="JSON" />
+              <p className="text-xs text-slate-400 mt-2">
+                Replace the path with the absolute path to <code className="bg-slate-100 px-1 rounded">server.py</code> on your machine.
+              </p>
+            </div>
+
+            {/* Manus AI */}
+            <div>
+              <h3 className="text-sm font-medium mb-3 text-slate-700">Manus AI — MCP Connector JSON</h3>
+              <CodeBlock code={MANUS_JSON(mcpUrl || "https://{hostname}/mcp")} label="JSON" />
             </div>
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="py-12 border-t border-slate-200/50 bg-slate-50 text-center">
-          <p className="text-slate-500 text-sm">Built for AI Agents. Powered by Korea Tourism Organization Open API.</p>
-        </footer>
+        {/* Meta */}
+        <section>
+          <div className="border border-slate-200 rounded-lg overflow-hidden text-sm divide-y divide-slate-100">
+            {[
+              { label: "Data Source", value: "Korea Tourism Organization (한국관광공사)" },
+              { label: "API Base", value: "apis.data.go.kr/B551011/EngService2" },
+              { label: "Transport", value: "Streamable HTTP (MCP protocol)" },
+              { label: "Refresh Cycle", value: "Real-time (live API calls)" },
+              { label: "Rate Limit", value: "1,000 requests / day (dev key)" },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center gap-4 px-4 py-2.5 bg-white">
+                <span className="text-xs text-slate-400 w-40 shrink-0">{label}</span>
+                <span className="text-xs text-slate-700 font-mono">{value}</span>
+              </div>
+            ))}
+          </div>
 
-        <Toaster />
-      </div>
-    </TooltipProvider>
+          <div className="flex items-center gap-4 mt-4">
+            <a
+              href="https://www.data.go.kr/data/15101753/openapi.do"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+            >
+              Official API Reference <ExternalLink className="w-3 h-3" />
+            </a>
+            <a
+              href="https://github.com/leejaew/visitkorea-mcp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+            >
+              GitHub <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </section>
+
+      </main>
+
+      <footer className="border-t border-slate-100 py-6 text-center">
+        <p className="text-xs text-slate-400">
+          VisitKorea MCP · Korea Tourism Organization English Open API · MIT License
+        </p>
+      </footer>
+    </div>
   );
 }
