@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ChevronRight } from "lucide-react";
+import { marked } from "marked";
+import manusInstructions from "./MANUS_INSTRUCTIONS.md?raw";
 
 const TOOLS = [
   {
@@ -107,8 +109,8 @@ function DarkCodeBlock({ label, code }: { label: string; code: string }) {
 export default function App() {
   const [mcpUrl, setMcpUrl] = useState<string | null>(null);
   const [isProd, setIsProd] = useState(false);
-
   const [host, setHost] = useState(window.location.host);
+  const [isManusOpen, setIsManusOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/config")
@@ -145,6 +147,7 @@ export default function App() {
   }
 }`;
 
+  const manusHtml = marked.parse(manusInstructions) as string;
 
   return (
     <div className="min-h-screen bg-[hsl(220,20%,97%)]">
@@ -155,7 +158,7 @@ export default function App() {
           <span className="text-2xl">🇰🇷</span>
           <div>
             <h1 className="text-lg font-semibold text-foreground leading-tight">visitkorea-mcp</h1>
-            <p className="text-xs text-muted-foreground">Korea Tourism Organization · English Open API · MCP Server</p>
+            <p className="text-xs text-muted-foreground">Korea Tourism Organization (KTO) · Open API via data.go.kr · MCP Server</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
@@ -172,9 +175,13 @@ export default function App() {
         <section>
           <h2 className="text-2xl font-bold text-foreground">AI-ready access to Korea's general tourism data</h2>
           <p className="mt-2 text-muted-foreground max-w-2xl">
-            This MCP (Model Context Protocol) server wraps the official Korea Tourism Organization{" "}
+            This MCP (Model Context Protocol) server wraps the{" "}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">EngService2</code>{" "}
-            API, exposing {TOOLS.length} structured tools that Manus AI, Claude, and other MCP-compatible agents
+            Open API published on{" "}
+            <strong className="font-semibold text-foreground">data.go.kr</strong>{" "}
+            (Korea's Public Data Portal), based on general tourism data curated by the{" "}
+            <strong className="font-semibold text-foreground">Korea Tourism Organization (KTO)</strong>.
+            It exposes {TOOLS.length} structured tools that Manus AI, Claude, and other MCP-compatible agents
             can call directly via Streamable HTTP.
           </p>
         </section>
@@ -255,12 +262,62 @@ export default function App() {
           </div>
         </section>
 
+        {/* Manus AI Instructions (collapsible) */}
+        <section>
+          <button
+            onClick={() => setIsManusOpen((v) => !v)}
+            aria-expanded={isManusOpen}
+            className="w-full flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 cursor-pointer text-left hover:bg-muted/50 transition-colors"
+          >
+            <ChevronRight
+              className="w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200"
+              style={{ transform: isManusOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+            />
+            <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-foreground">
+              Manus AI Instructions
+            </span>
+            <span className="text-xs font-normal text-muted-foreground normal-case tracking-normal">
+              When &amp; how to use this MCP
+            </span>
+          </button>
+
+          {isManusOpen && (
+            <div className="mt-2 bg-white border border-border rounded-xl px-9 py-8 manus-content">
+              <div
+                className="prose prose-sm max-w-none
+                  prose-headings:text-foreground
+                  prose-h1:text-xl prose-h1:font-bold prose-h1:mb-4
+                  prose-h2:text-base prose-h2:font-bold prose-h2:mt-7 prose-h2:mb-2.5 prose-h2:pb-1.5 prose-h2:border-b prose-h2:border-border
+                  prose-h3:text-sm prose-h3:font-semibold prose-h3:mt-5 prose-h3:mb-1.5
+                  prose-p:text-muted-foreground prose-p:leading-relaxed
+                  prose-li:text-muted-foreground
+                  prose-strong:text-foreground prose-strong:font-semibold
+                  prose-code:text-primary prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none
+                  prose-pre:bg-slate-900 prose-pre:text-slate-100 prose-pre:rounded-xl
+                  prose-pre:p-4 prose-pre:text-xs
+                  prose-blockquote:border-primary prose-blockquote:bg-muted prose-blockquote:rounded-r-md prose-blockquote:text-muted-foreground prose-blockquote:not-italic
+                  prose-table:text-sm
+                  prose-th:bg-muted prose-th:text-foreground prose-th:font-semibold
+                  prose-td:text-muted-foreground
+                  prose-a:text-primary
+                  prose-hr:border-border"
+                dangerouslySetInnerHTML={{ __html: manusHtml }}
+              />
+            </div>
+          )}
+        </section>
+
         {/* Meta */}
-        <section className="grid sm:grid-cols-3 gap-4">
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-white border border-border rounded-xl px-5 py-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Data Source</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Data Owner</p>
             <p className="text-sm font-medium text-foreground">Korea Tourism Organization</p>
-            <p className="text-xs text-muted-foreground mt-0.5">한국관광공사 · EngService2</p>
+            <p className="text-xs text-muted-foreground mt-0.5">KTO (한국관광공사)</p>
+          </div>
+          <div className="bg-white border border-border rounded-xl px-5 py-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">API Provider</p>
+            <p className="text-sm font-medium text-foreground">data.go.kr</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Korea Public Data Portal</p>
           </div>
           <div className="bg-white border border-border rounded-xl px-5 py-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Refresh Cycle</p>
@@ -282,7 +339,7 @@ export default function App() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
-            Official API Reference <ExternalLink className="w-3 h-3" />
+            data.go.kr API Reference <ExternalLink className="w-3 h-3" />
           </a>
           <a
             href="https://github.com/leejaew/visitkorea-mcp"
