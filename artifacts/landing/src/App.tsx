@@ -94,7 +94,6 @@ function CopyButton({ text }: { text: string }) {
 
 
 export default function App() {
-  const [mcpUrl, setMcpUrl] = useState<string | null>(null);
   const [isProd, setIsProd] = useState(false);
   const [host, setHost] = useState(window.location.host);
   const [isManusOpen, setIsManusOpen] = useState(false);
@@ -103,12 +102,10 @@ export default function App() {
     fetch("/api/config")
       .then((r) => r.json())
       .then((data) => {
-        setMcpUrl(data.mcpUrl ?? null);
         setIsProd(!!data.mcpUrl);
         if (data.host) setHost(data.host);
       })
       .catch(() => {
-        setMcpUrl(null);
         setIsProd(false);
       });
   }, []);
@@ -118,18 +115,6 @@ export default function App() {
     "visitkorea": {
       "type": "streamableHttp",
       "url": "https://${host}/mcp"
-    }
-  }
-}`;
-
-  const claudeDesktopJson = `{
-  "mcpServers": {
-    "visitkorea": {
-      "command": "python3",
-      "args": ["/absolute/path/to/visitkorea-mcp/server.py"],
-      "env": {
-        "VISITKOREA_API_KEY": "your_url_encoded_service_key_here"
-      }
     }
   }
 }`;
@@ -178,51 +163,25 @@ export default function App() {
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             Connect your AI agent
           </h3>
-          <div className="space-y-4">
-
-            {/* Manus AI / Claude AI — primary connector */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Manus AI · Claude AI — Streamable HTTP</p>
-              <div className="rounded-xl bg-slate-900 text-slate-100 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
-                  <span className="text-xs font-medium text-slate-400">MCP Connector JSON</span>
-                  <CopyButton text={manusJson} />
-                </div>
-                <pre className="px-4 py-4 text-sm font-mono overflow-x-auto leading-relaxed">
-                  <code>{manusJson}</code>
-                </pre>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Paste this into your AI agent's MCP connector settings. The Streamable HTTP endpoint is at{" "}
-                <code className="bg-muted px-1 py-0.5 rounded">https://{host}/mcp</code>
-              </p>
+          <div className="rounded-xl bg-slate-900 text-slate-100 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+              <span className="text-xs font-medium text-slate-400">MCP Connector JSON</span>
+              <CopyButton text={manusJson} />
             </div>
-
-            {/* Claude Desktop */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Claude Desktop — claude_desktop_config.json</p>
-              <div className="rounded-xl bg-slate-900 text-slate-100 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
-                  <span className="text-xs font-medium text-slate-400">JSON</span>
-                  <CopyButton text={claudeDesktopJson} />
-                </div>
-                <pre className="px-4 py-4 text-sm font-mono overflow-x-auto leading-relaxed">
-                  <code>{claudeDesktopJson}</code>
-                </pre>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Replace the path with the absolute path to{" "}
-                <code className="bg-muted px-1 py-0.5 rounded">server.py</code> on your machine.
-              </p>
-            </div>
-
-            {!isProd && (
-              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                This is the development URL. Deploy the project to get your permanent{" "}
-                <code className="bg-muted px-1 py-0.5 rounded">.replit.app</code> production URL.
-              </p>
-            )}
+            <pre className="px-4 py-4 text-sm font-mono overflow-x-auto leading-relaxed">
+              <code>{manusJson}</code>
+            </pre>
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Paste this into your AI agent's custom connector settings. The Streamable HTTP endpoint is at{" "}
+            <code className="bg-muted px-1 py-0.5 rounded">https://{host}/mcp</code>
+          </p>
+          {!isProd && (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              This is the development URL. Deploy the project to get your permanent{" "}
+              <code className="bg-muted px-1 py-0.5 rounded">.replit.app</code> production URL.
+            </p>
+          )}
         </section>
 
         {/* Tools */}
