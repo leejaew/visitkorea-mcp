@@ -63,7 +63,7 @@ const waitForPython = async (_req: Request, res: Response, next: NextFunction) =
   }
 };
 
-// Streamable HTTP transport — used by Claude AI (claude.ai) custom connector
+// Streamable HTTP transport — MCP endpoint for Claude AI and other HTTP-based clients
 app.use("/mcp", waitForPython);
 app.use(
   "/mcp",
@@ -71,22 +71,6 @@ app.use(
     target: "http://localhost:3001",
     changeOrigin: false,
     pathRewrite: { "^/": "/mcp" },
-  }),
-);
-
-// SSE transport — default for Manus AI and other SSE-based MCP clients
-app.use(["/sse", "/messages"], waitForPython);
-app.use(
-  ["/sse", "/messages"],
-  createProxyMiddleware({
-    target: "http://localhost:3001",
-    changeOrigin: false,
-    on: {
-      proxyReq: (proxyReq) => {
-        // Remove compression to keep SSE stream intact
-        proxyReq.removeHeader("accept-encoding");
-      },
-    },
   }),
 );
 
