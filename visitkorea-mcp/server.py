@@ -1130,6 +1130,45 @@ def run_http(host: str = "0.0.0.0", port: int = 3001):
     uvicorn.run(app, host=host, port=port)
 
 
+def run_combined(host: str = "0.0.0.0", port: int = 3001):
+    """Run SSE (/sse) and Streamable HTTP (/mcp) together on the same port."""
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+
+    # SSE transport
+    sse_transport = SseServerTransport("/messages/")
+
+    async def handle_sse(request):
+        async with sse_transport.connect_sse(request.scope, request.receive, request._send) as streams:
+            await server.run(streams[0], streams[1], server.create_initialization_options())
+
+    # Streamable HTTP transport
+    session_manager = StreamableHTTPSessionManager(
+        app=server,
+        event_store=None,
+        json_response=True,
+        stateless=True,
+    )
+
+    async def handle_mcp(request):
+        await session_manager.handle_request(request.scope, request.receive, request._send)
+
+    async def lifespan(app):
+        async with session_manager.run():
+            yield
+
+    app = Starlette(
+        routes=[
+            Route("/sse", endpoint=handle_sse),
+            Mount("/messages/", app=sse_transport.handle_post_message),
+            Route("/mcp", endpoint=handle_mcp, methods=["GET", "POST", "DELETE"]),
+        ],
+        lifespan=lifespan,
+    )
+
+    print(f"VisitKorea MCP Server running at http://{host}:{port}/sse (SSE) and http://{host}:{port}/mcp (HTTP)")
+    uvicorn.run(app, host=host, port=port)
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -1147,7 +1186,7 @@ if __name__ == "__main__":
         run_sse(host=args.host, port=port)
     elif args.http:
         port = args.port or int(os.environ.get("PORT", 3001))
-        run_http(host=args.host, port=port)
+        run_combined(host=args.host, port=port)
     else:
         # Default: stdio mode (for Claude Desktop / Manus AI local use)
         asyncio.run(run_stdio())
