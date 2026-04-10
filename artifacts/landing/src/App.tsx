@@ -76,16 +76,29 @@ const TOOLS = [
   },
 ];
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({
+  text,
+  onClick,
+  variant = "dark",
+}: {
+  text: string;
+  onClick?: (e: React.MouseEvent) => void;
+  variant?: "dark" | "light";
+}) {
   const [copied, setCopied] = useState(false);
+  const cls =
+    variant === "light"
+      ? "text-xs px-2 py-1 rounded bg-muted hover:bg-border transition-colors font-mono border border-border cursor-pointer text-muted-foreground"
+      : "text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors font-mono border border-white/20 cursor-pointer";
   return (
     <button
-      onClick={() => {
+      onClick={(e) => {
+        onClick?.(e);
         navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors font-mono border border-white/20 cursor-pointer"
+      className={cls}
     >
       {copied ? "Copied!" : "Copy"}
     </button>
@@ -248,6 +261,11 @@ export default function App() {
             <span className="text-xs font-normal text-muted-foreground normal-case tracking-normal">
               When &amp; how to use this MCP
             </span>
+            <CopyButton
+              text={manusInstructions}
+              variant="light"
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
           </button>
 
           {isManusOpen && (
