@@ -1082,6 +1082,8 @@ async def run_stdio():
 def run_http(host: str = "0.0.0.0", port: int = 3001):
     """Run as a Streamable HTTP server."""
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+    from contextlib import asynccontextmanager
+    from starlette.types import Scope, Receive, Send
 
     session_manager = StreamableHTTPSessionManager(
         app=server,
@@ -1090,19 +1092,61 @@ def run_http(host: str = "0.0.0.0", port: int = 3001):
         stateless=True,
     )
 
-    async def handle_mcp(request):
-        await session_manager.handle_request(request.scope, request.receive, request._send)
+    # Track whether the session manager lifespan is active and ready.
+    # This prevents requests from hitting handle_request before run() starts,
+    # which would raise "Task group is not initialized".
+    _ready = {"value": False}
 
+    class MCPApp:
+        """
+        Canonical ASGI callable for the MCP endpoint (mirrors FastMCP's
+        StreamableHTTPASGIApp).  Using a class instead of an async function
+        prevents Starlette from wrapping it in request_response(), which
+        can interfere with exception propagation when the session manager
+        sends the HTTP response directly.
+        """
+        async def __call__(self, scope: "Scope", receive: "Receive", send: "Send") -> None:
+            try:
+                await session_manager.handle_request(scope, receive, send)
+            except BaseException as exc:
+                # Log and swallow – prevents anyio CancelledError / task-group
+                # crashes from propagating to uvicorn and killing the process.
+                import traceback
+                print(
+                    f"[MCP] request error ({type(exc).__name__}): {exc}",
+                    flush=True,
+                )
+                if not isinstance(exc, Exception):
+                    # Re-raise true cancellations so anyio can manage them
+                    raise
+
+    mcp_app = MCPApp()
+
+    async def healthz(request):
+        """Readiness probe used by the Node.js proxy before it starts forwarding
+        MCP traffic.  Returns 200 only after the session manager is fully started."""
+        if _ready["value"]:
+            return JSONResponse({"status": "ok"})
+        return JSONResponse({"status": "starting"}, status_code=503)
+
+    @asynccontextmanager
     async def lifespan(app):
         async with session_manager.run():
-            yield
+            _ready["value"] = True
+            try:
+                yield
+            finally:
+                _ready["value"] = False
 
     app = Starlette(
-        routes=[Route("/mcp", endpoint=handle_mcp, methods=["GET", "POST", "DELETE"])],
+        routes=[
+            Route("/healthz", endpoint=healthz, methods=["GET"]),
+            Route("/mcp", endpoint=mcp_app, methods=["GET", "POST", "DELETE"]),
+        ],
         lifespan=lifespan,
     )
 
-    print(f"VisitKorea MCP Server running at http://{host}:{port}/mcp")
+    print(f"VisitKorea MCP Server running at http://{host}:{port}/mcp", flush=True)
     uvicorn.run(app, host=host, port=port)
 
 
