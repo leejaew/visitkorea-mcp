@@ -1,4 +1,3 @@
-import net from "net";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
@@ -6,30 +5,31 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
-function waitForPort(port: number, maxWaitMs = 300_000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      const socket = net.createConnection(port, "127.0.0.1");
-      socket.on("connect", () => {
-        socket.destroy();
+/**
+ * Poll the Python MCP server's /healthz endpoint until it returns HTTP 200.
+ * This guarantees the session manager lifespan has started (the task group is
+ * initialised) before we forward any MCP traffic.  A plain TCP-port check
+ * resolves too early — the port opens before Starlette's lifespan runs.
+ */
+async function waitForPythonHttp(port: number, maxWaitMs = 300_000): Promise<void> {
+  const url = `http://127.0.0.1:${port}/healthz`;
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const res = await fetch(url);
+      if (res.status === 200) {
         logger.info({ port }, "Python MCP server is ready");
-        resolve();
-      });
-      socket.on("error", () => {
-        socket.destroy();
-        if (Date.now() - start < maxWaitMs) {
-          setTimeout(attempt, 2000);
-        } else {
-          reject(new Error(`Timed out waiting for Python MCP server on port ${port}`));
-        }
-      });
-    };
-    attempt();
-  });
+        return;
+      }
+    } catch {
+      // server not yet accepting connections — keep polling
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error(`Timed out waiting for Python MCP server on port ${port}`);
 }
 
-const pythonReady = waitForPort(3001);
+const pythonReady = waitForPythonHttp(3001);
 
 const app: Express = express();
 
