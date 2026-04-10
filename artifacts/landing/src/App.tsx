@@ -127,8 +127,8 @@ export default function App() {
   const manusJson = `{
   "mcpServers": {
     "visitkorea": {
-      "url": "https://${host}/sse",
-      "type": "sse"
+      "type": "streamableHttp",
+      "url": "https://${host}/mcp"
     }
   }
 }`;
@@ -160,7 +160,7 @@ export default function App() {
           <div className="ml-auto flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              Live · SSE
+              Live · Streamable HTTP
             </span>
           </div>
         </div>
@@ -175,7 +175,7 @@ export default function App() {
             This MCP (Model Context Protocol) server wraps the official Korea Tourism Organization{" "}
             <code className="text-xs bg-muted px-1 py-0.5 rounded">EngService2</code>{" "}
             API, exposing {TOOLS.length} structured tools that Manus AI, Claude, and other MCP-compatible agents
-            can call directly via SSE or Streamable HTTP.
+            can call directly via Streamable HTTP.
           </p>
         </section>
 
@@ -188,7 +188,7 @@ export default function App() {
 
             {/* Claude AI (claude.ai) */}
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Claude AI (claude.ai) — Custom Connector (Streamable HTTP)</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Claude AI (claude.ai) — Custom Connector</p>
               <div className="bg-white border border-border rounded-xl overflow-hidden divide-y divide-border text-sm">
                 {[
                   { field: "Name", value: "VisitKorea Tourism", mono: false },
@@ -219,7 +219,7 @@ export default function App() {
 
             {/* Manus AI */}
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Manus AI — SSE (recommended)</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Manus AI — Streamable HTTP</p>
               <DarkCodeBlock label="MCP Connector JSON" code={manusJson} />
             </div>
 
@@ -269,7 +269,7 @@ export default function App() {
           </div>
           <div className="bg-white border border-border rounded-xl px-5 py-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Transport</p>
-            <p className="text-sm font-medium text-foreground">SSE · Streamable HTTP</p>
+            <p className="text-sm font-medium text-foreground">Streamable HTTP</p>
             <p className="text-xs text-muted-foreground mt-0.5">MCP protocol · MIT License</p>
           </div>
         </section>
