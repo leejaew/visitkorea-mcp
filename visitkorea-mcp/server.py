@@ -11,9 +11,8 @@ Environment Variables:
   VISITKOREA_API_KEY  - Your service key from data.go.kr (URL-encoded)
 
 Usage:
-  python3 server.py              # stdio mode (for Claude Desktop / Manus AI stdio)
-  python3 server.py --sse        # SSE mode  (for web-based MCP clients)
-  python3 server.py --http       # Streamable HTTP mode
+  python3 server.py              # stdio mode (for Claude Desktop / local use)
+  python3 server.py --http       # Streamable HTTP mode (for remote/web-based MCP clients)
 """
 
 import os
@@ -26,7 +25,6 @@ from urllib.parse import urlencode
 from typing import Any, Optional
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.server.sse import SseServerTransport
 from mcp.types import (
     Tool,
     TextContent,
@@ -1081,28 +1079,6 @@ async def run_stdio():
         await server.run(read_stream, write_stream, server.create_initialization_options())
 
 
-def run_sse(host: str = "0.0.0.0", port: int = 3000):
-    """Run as an SSE server — for web-based MCP clients."""
-    sse = SseServerTransport("/messages/")
-
-    async def handle_sse(request):
-        async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
-            await server.run(streams[0], streams[1], server.create_initialization_options())
-
-    async def handle_messages(request):
-        await sse.handle_post_message(request.scope, request.receive, request._send)
-
-    app = Starlette(
-        routes=[
-            Route("/sse", endpoint=handle_sse),
-            Mount("/messages/", app=sse.handle_post_message),
-        ]
-    )
-
-    print(f"VisitKorea MCP Server (SSE) running at http://{host}:{port}/sse")
-    uvicorn.run(app, host=host, port=port)
-
-
 def run_http(host: str = "0.0.0.0", port: int = 3001):
     """Run as a Streamable HTTP server."""
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
@@ -1126,46 +1102,7 @@ def run_http(host: str = "0.0.0.0", port: int = 3001):
         lifespan=lifespan,
     )
 
-    print(f"VisitKorea MCP Server (HTTP) running at http://{host}:{port}/mcp")
-    uvicorn.run(app, host=host, port=port)
-
-
-def run_combined(host: str = "0.0.0.0", port: int = 3001):
-    """Run SSE (/sse) and Streamable HTTP (/mcp) together on the same port."""
-    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
-
-    # SSE transport
-    sse_transport = SseServerTransport("/messages/")
-
-    async def handle_sse(request):
-        async with sse_transport.connect_sse(request.scope, request.receive, request._send) as streams:
-            await server.run(streams[0], streams[1], server.create_initialization_options())
-
-    # Streamable HTTP transport
-    session_manager = StreamableHTTPSessionManager(
-        app=server,
-        event_store=None,
-        json_response=True,
-        stateless=True,
-    )
-
-    async def handle_mcp(request):
-        await session_manager.handle_request(request.scope, request.receive, request._send)
-
-    async def lifespan(app):
-        async with session_manager.run():
-            yield
-
-    app = Starlette(
-        routes=[
-            Route("/sse", endpoint=handle_sse),
-            Mount("/messages/", app=sse_transport.handle_post_message),
-            Route("/mcp", endpoint=handle_mcp, methods=["GET", "POST", "DELETE"]),
-        ],
-        lifespan=lifespan,
-    )
-
-    print(f"VisitKorea MCP Server running at http://{host}:{port}/sse (SSE) and http://{host}:{port}/mcp (HTTP)")
+    print(f"VisitKorea MCP Server running at http://{host}:{port}/mcp")
     uvicorn.run(app, host=host, port=port)
 
 
@@ -1175,18 +1112,14 @@ def run_combined(host: str = "0.0.0.0", port: int = 3001):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="VisitKorea MCP Server")
-    parser.add_argument("--sse", action="store_true", help="Run in SSE mode")
     parser.add_argument("--http", action="store_true", help="Run in Streamable HTTP mode")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind (SSE/HTTP modes)")
-    parser.add_argument("--port", type=int, help="Port to listen on (SSE: 3000, HTTP: 3001)")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind (HTTP mode)")
+    parser.add_argument("--port", type=int, help="Port to listen on (default: 3001)")
     args = parser.parse_args()
 
-    if args.sse:
-        port = args.port or int(os.environ.get("PORT", 3000))
-        run_sse(host=args.host, port=port)
-    elif args.http:
+    if args.http:
         port = args.port or int(os.environ.get("PORT", 3001))
-        run_combined(host=args.host, port=port)
+        run_http(host=args.host, port=port)
     else:
-        # Default: stdio mode (for Claude Desktop / Manus AI local use)
+        # Default: stdio mode (for Claude Desktop / local use)
         asyncio.run(run_stdio())
