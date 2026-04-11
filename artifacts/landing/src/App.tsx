@@ -88,7 +88,7 @@ function CopyButton({
   const [copied, setCopied] = useState(false);
   const cls =
     variant === "light"
-      ? "text-xs px-2 py-1 rounded bg-muted hover:bg-border transition-colors font-mono border border-border cursor-pointer text-muted-foreground"
+      ? "text-xs px-3 py-1 rounded-xl border border-border bg-white hover:bg-muted/50 transition-colors font-mono text-muted-foreground shrink-0 cursor-pointer"
       : "text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors font-mono border border-white/20 cursor-pointer";
   return (
     <button
@@ -246,28 +246,29 @@ export default function App() {
 
         {/* Manus AI Instructions (collapsible) */}
         <section>
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => setIsManusOpen((v) => !v)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsManusOpen((v) => !v); }}
-            aria-expanded={isManusOpen}
-            className="w-full flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 cursor-pointer text-left hover:bg-muted/50 transition-colors"
-          >
-            <ChevronRight
-              className="w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200"
-              style={{ transform: isManusOpen ? "rotate(90deg)" : "rotate(0deg)" }}
-            />
-            <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-foreground">
-              Manus AI Instructions
-            </span>
-            <span className="text-xs font-normal text-muted-foreground normal-case tracking-normal">
-              When &amp; how to use this MCP
-            </span>
+          <div className="flex items-stretch gap-2">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setIsManusOpen((v) => !v)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsManusOpen((v) => !v); }}
+              aria-expanded={isManusOpen}
+              className="flex-1 flex items-center gap-2 px-5 py-3.5 bg-white border border-border rounded-xl cursor-pointer text-left hover:bg-muted/50 transition-colors"
+            >
+              <ChevronRight
+                className="w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200"
+                style={{ transform: isManusOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+              />
+              <span className="text-sm font-semibold text-foreground">
+                Manus AI Instructions
+              </span>
+              <span className="text-xs text-muted-foreground">
+                How and when to use this MCP — click to expand
+              </span>
+            </div>
             <CopyButton
               text={manusInstructions}
               variant="light"
-              onClick={(e: React.MouseEvent) => e.stopPropagation()}
             />
           </div>
 
