@@ -7,7 +7,7 @@ import { logger } from "./lib/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(__dirname, "../../..");
-const serverScript = path.join(workspaceRoot, "visitkorea-mcp/server.py");
+const serverScript = path.join(workspaceRoot, "visitkorea-mcp/main.py");
 
 const dotPylibsPython = path.join(workspaceRoot, ".pythonlibs/bin/python3.11");
 const pythonExe = fs.existsSync(dotPylibsPython) ? dotPylibsPython : "python3.11";
