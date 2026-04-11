@@ -20,6 +20,8 @@ import sys
 import json
 import asyncio
 import argparse
+import logging
+import time
 import httpx
 from urllib.parse import urlencode
 from typing import Any, Optional
@@ -34,6 +36,41 @@ from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.responses import JSONResponse
 import uvicorn
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(levelname)s %(name)s: %(message)s",
+    stream=sys.stderr,
+)
+_log = logging.getLogger("visitkorea_mcp")
+
+# ---------------------------------------------------------------------------
+# Shared HTTP client — reuses TCP connections to the KTO API (connection pool)
+# ---------------------------------------------------------------------------
+
+_http_client = httpx.AsyncClient(
+    timeout=30.0,
+    limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+)
+
+# ---------------------------------------------------------------------------
+# In-memory TTL cache for static reference/lookup endpoints
+# ---------------------------------------------------------------------------
+
+_cache: dict[str, tuple[dict, float]] = {}
+_CACHE_TTL = 3600.0  # 1 hour — reference tables change rarely
+
+# Endpoints whose full responses are safe to cache
+_CACHEABLE_ENDPOINTS = frozenset({
+    "ldongCode2",      # legal district codes
+    "lclsSystmCode2",  # classification system codes
+    "areaCode2",       # area codes
+    "categoryCode2",   # category hierarchy codes
+})
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -71,32 +108,63 @@ def get_api_key() -> str:
 async def call_api(endpoint: str, params: dict[str, Any]) -> dict:
     """Call the VisitKorea Open API and return parsed JSON.
 
-    The serviceKey is already URL-encoded in the environment variable, so we
-    embed it directly in the URL string to avoid double-encoding by httpx.
-    All other parameters are passed via httpx params (which handles encoding).
+    - Uses a shared module-level httpx.AsyncClient for TCP connection pooling.
+    - Caches responses for static reference endpoints (TTL: 1 hour).
+    - Clamps numOfRows to the valid range [1, 100].
+    - The serviceKey is already URL-encoded in the environment variable, so we
+      embed it directly in the URL string to avoid double-encoding by httpx.
     """
-    service_key = get_api_key()  # already URL-encoded from data.go.kr
+    service_key = get_api_key()
 
-    # Other fixed params (httpx will encode these)
+    # Clamp numOfRows to a safe range (KTO API max is 100)
+    if params.get("numOfRows") is not None:
+        params = dict(params)
+        try:
+            params["numOfRows"] = max(1, min(int(params["numOfRows"]), 100))
+        except (TypeError, ValueError):
+            params["numOfRows"] = 10
+
     other_params: dict[str, Any] = {
         "MobileOS": MOBILE_OS,
         "MobileApp": MOBILE_APP,
         "_type": "json",
     }
-    # Merge caller params, dropping None values
     for k, v in params.items():
         if v is not None:
             other_params[k] = v
 
-    # Build the complete query string manually so the pre-encoded serviceKey
-    # is not re-encoded by httpx (httpx replaces the entire query string when
-    # params= is used, losing the pre-embedded serviceKey).
+    # --- TTL cache for static reference/lookup endpoints ---
+    cache_key: str | None = None
+    if endpoint in _CACHEABLE_ENDPOINTS:
+        cache_key = f"{endpoint}:{json.dumps(other_params, sort_keys=True, ensure_ascii=False)}"
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            data, expires_at = cached
+            if time.monotonic() < expires_at:
+                return data
+
+    # Build query string — serviceKey is pre-encoded, so embed it raw to
+    # avoid double-encoding by urlencode.
     query_string = "serviceKey=" + service_key + "&" + urlencode(other_params)
     url = f"{BASE_URL}/{endpoint}?{query_string}"
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.get(url)
 
-    # Handle HTTP errors gracefully
+    try:
+        resp = await _http_client.get(url)
+    except httpx.TimeoutException:
+        return {
+            "success": False,
+            "error": "Request to Korea Tourism API timed out (30 s). The upstream API may be temporarily slow.",
+            "items": [],
+            "totalCount": 0,
+        }
+    except httpx.RequestError as exc:
+        return {
+            "success": False,
+            "error": f"Network error reaching Korea Tourism API: {type(exc).__name__}",
+            "items": [],
+            "totalCount": 0,
+        }
+
     if resp.status_code == 401:
         return {
             "success": False,
@@ -139,7 +207,7 @@ async def call_api(endpoint: str, params: dict[str, Any]) -> dict:
         raw = items_wrapper.get("item", [])
         items = raw if isinstance(raw, list) else [raw]
 
-    return {
+    result = {
         "success": True,
         "resultCode": result_code,
         "resultMsg": result_msg,
@@ -148,6 +216,12 @@ async def call_api(endpoint: str, params: dict[str, Any]) -> dict:
         "totalCount": body.get("totalCount", 0),
         "items": items,
     }
+
+    # Populate cache for cacheable endpoints
+    if cache_key is not None:
+        _cache[cache_key] = (result, time.monotonic() + _CACHE_TTL)
+
+    return result
 
 
 def format_result(data: dict) -> str:
@@ -1079,7 +1153,7 @@ async def run_stdio():
         await server.run(read_stream, write_stream, server.create_initialization_options())
 
 
-def run_http(host: str = "0.0.0.0", port: int = 3001):
+def run_http(host: str = "127.0.0.1", port: int = 3001):
     """Run as a Streamable HTTP server."""
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from contextlib import asynccontextmanager
@@ -1111,11 +1185,7 @@ def run_http(host: str = "0.0.0.0", port: int = 3001):
             except BaseException as exc:
                 # Log and swallow – prevents anyio CancelledError / task-group
                 # crashes from propagating to uvicorn and killing the process.
-                import traceback
-                print(
-                    f"[MCP] request error ({type(exc).__name__}): {exc}",
-                    flush=True,
-                )
+                _log.error("MCP request error (%s): %s", type(exc).__name__, exc)
                 if not isinstance(exc, Exception):
                     # Re-raise true cancellations so anyio can manage them
                     raise
@@ -1137,6 +1207,8 @@ def run_http(host: str = "0.0.0.0", port: int = 3001):
                 yield
             finally:
                 _ready["value"] = False
+        # Gracefully close the shared HTTP client on server shutdown
+        await _http_client.aclose()
 
     app = Starlette(
         routes=[
@@ -1147,7 +1219,9 @@ def run_http(host: str = "0.0.0.0", port: int = 3001):
     )
 
     print(f"VisitKorea MCP Server running at http://{host}:{port}/mcp", flush=True)
-    uvicorn.run(app, host=host, port=port)
+    # access_log=False prevents uvicorn from logging full request URLs, which
+    # would expose the serviceKey query parameter in plain-text server logs.
+    uvicorn.run(app, host=host, port=port, access_log=False)
 
 
 # ---------------------------------------------------------------------------
@@ -1157,7 +1231,7 @@ def run_http(host: str = "0.0.0.0", port: int = 3001):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="VisitKorea MCP Server")
     parser.add_argument("--http", action="store_true", help="Run in Streamable HTTP mode")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind (HTTP mode)")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind (HTTP mode, default: 127.0.0.1)")
     parser.add_argument("--port", type=int, help="Port to listen on (default: 3001)")
     args = parser.parse_args()
 
