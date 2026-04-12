@@ -1,46 +1,16 @@
 """
-Accommodations tool — hotel and lodging search.
+Accommodations tool handler — hotel and lodging search.
 
-Tools:
-  search_accommodations → searchStay2
+Schema definition lives in schemas/accommodations_schema.py.
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from mcp.types import Tool
-
+from schemas.accommodations_schema import TOOLS
 from utils.api_client import call_api
 
-TOOLS = [
-    Tool(
-        name="search_accommodations",
-        description=(
-            "Search Korean accommodations (hotels, pensions, hostels, motels, condominiums, camping, etc.). "
-            "Returns a list with addresses, GPS coordinates, representative images, and content IDs. "
-            "Use get_tourism_intro_info for detailed accommodation info like room types and facilities."
-        ),
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "numOfRows": {"type": "integer", "description": "Number of results per page (default: 10)", "default": 10},
-                "pageNo": {"type": "integer", "description": "Page number (default: 1)", "default": 1},
-                "arrange": {
-                    "type": "string",
-                    "description": "Sort: A=title, C=modified, D=created. For images: O/Q/R",
-                    "enum": ["A", "C", "D", "O", "Q", "R"],
-                },
-                "modifiedtime": {"type": "string", "description": "Filter by modified date (YYYYMMDD)."},
-                "lDongRegnCd": {"type": "string", "description": "Province code. Use get_legal_district_codes to look up. Example: '11'=Seoul"},
-                "lDongSignguCd": {"type": "string", "description": "City/county code (requires lDongRegnCd)."},
-                "lclsSystm1": {"type": "string", "description": "Classification level-1 filter (e.g. 'AC' for accommodation types)."},
-                "lclsSystm2": {"type": "string", "description": "Classification level-2 filter (requires lclsSystm1)."},
-                "lclsSystm3": {"type": "string", "description": "Classification level-3 filter (requires lclsSystm1 and lclsSystm2)."},
-            },
-            "required": [],
-        },
-    ),
-]
+__all__ = ["TOOLS", "handle"]
 
 
 async def handle(name: str, args: dict) -> Optional[dict]:
