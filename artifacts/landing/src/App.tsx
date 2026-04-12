@@ -115,8 +115,14 @@ export default function App() {
     fetch("/api/config")
       .then((r) => r.json())
       .then((data) => {
-        setIsProd(!!data.mcpUrl);
+        // Update the connector URL to always show the best available host (production if deployed)
         if (data.host) setHost(data.host);
+        // Only hide the dev warning when the user is *actually on* the production domain —
+        // not just because the project happens to be deployed. A deployed project still
+        // serves the dev workspace at a janeway URL, which is not the permanent URL.
+        const onProductionDomain =
+          !!data.mcpUrl && window.location.hostname.endsWith(".replit.app");
+        setIsProd(onProductionDomain);
       })
       .catch(() => {
         setIsProd(false);
