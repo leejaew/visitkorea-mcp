@@ -82,7 +82,7 @@ Replace the URL with your own deployed Replit project URL.
   "mcpServers": {
     "visitkorea": {
       "command": "python3",
-      "args": ["/absolute/path/to/visitkorea-mcp/server.py"],
+      "args": ["/absolute/path/to/visitkorea-mcp/main.py"],
       "env": {
         "VISITKOREA_API_KEY": "your_url_encoded_service_key_here"
       }
@@ -351,24 +351,39 @@ Browse the legacy 3-level category hierarchy (`cat1`/`cat2`/`cat3`) for content 
 ## Project Structure
 
 ```
-visitkorea-mcp/
-├── visitkorea-mcp/
-│   ├── server.py          # Python MCP server — 14 tools, stdio + Streamable HTTP
-│   └── requirements.txt   # Python dependencies
-├── artifacts/
-│   ├── api-server/
-│   │   ├── src/
-│   │   │   ├── app.ts     # Express app — MCP proxy middleware (/mcp)
-│   │   │   ├── index.ts   # Entry point — spawns Python server, starts Express
-│   │   │   └── routes/    # /api/config, /api/health
-│   │   ├── build.mjs      # esbuild bundler config
-│   │   └── package.json
-│   └── landing/
-│       └── src/
-│           ├── App.tsx              # React landing page
-│           └── MANUS_INSTRUCTIONS.md  # Manus AI usage instructions
-├── pnpm-workspace.yaml
-└── README.md
+visitkorea-mcp/          Python MCP server package
+├── main.py              Entry point — argparse, stdio + Streamable HTTP transports
+├── config.py            Constants (BASE_URL, content type map)
+├── requirements.txt     Python dependencies
+├── .env.example         Local setup reference (do not commit real keys)
+├── utils/
+│   ├── api_client.py    Shared httpx client, API key loading, response parsing
+│   ├── cache.py         TTL response cache (1 h for reference data, 5 min for search)
+│   ├── rate_limiter.py  Async token bucket (10 req/min upstream, burst 5)
+│   └── validation.py    Input validators (GPS bounds, radius, date format, pagination)
+├── schemas/             MCP Tool schema definitions (data — what tools look like)
+│   ├── search_schema.py
+│   ├── events_schema.py
+│   ├── accommodations_schema.py
+│   ├── detail_schema.py
+│   ├── sync_schema.py
+│   └── codes_schema.py
+└── tools/               Tool handlers (behaviour — what happens when tools are called)
+    ├── __init__.py      register_all_tools() — wires all handlers into the MCP Server
+    ├── search.py        search_tourism_by_area/location/keyword
+    ├── events.py        search_festivals_and_events
+    ├── accommodations.py search_accommodations
+    ├── detail.py        get_tourism_common/intro/detail_info + images
+    ├── sync.py          get_sync_list
+    └── codes.py         get_legal_district/classification/area/category_codes
+
+artifacts/
+├── api-server/          Node.js reverse proxy (port 8080)
+│   └── src/
+│       ├── app.ts       Express app — helmet, rate limiting, /mcp proxy
+│       └── index.ts     Spawns Python server, starts Express
+└── landing/             React landing page (Vite)
+    └── src/App.tsx      Connector JSON, Claude/Manus setup instructions
 ```
 
 ## Contributing
