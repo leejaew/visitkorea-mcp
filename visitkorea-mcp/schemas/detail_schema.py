@@ -18,16 +18,31 @@ TOOLS = [
         name="get_tourism_common_info",
         description=(
             "Get common/overview information for a specific tourism content item by its content ID. "
-            "Returns title, address, GPS coordinates, telephone, homepage URL, representative images, "
+            "Returns title, address, GPS coordinates, telephone, homepage URL, representative image, "
             "content type, overview description, copyright type, and classification codes. "
-            "Use this after finding a content ID from one of the search tools."
+            "IMPORTANT: contentId must be obtained from an active search tool call in the same session "
+            "(search_tourism_by_area, search_tourism_by_location, or search_tourism_by_keyword). "
+            "Do not guess or invent content IDs — they will return empty results. "
+            "If the response contains a 'hint' field, it explains why no data was returned."
         ),
         inputSchema={
             "type": "object",
             "properties": {
-                "contentId": {"type": "string", "description": "Unique content ID of the tourism item (from search results)."},
-                "numOfRows": {"type": "integer", "description": "Results per page (default 10)", "default": 10},
-                "pageNo": {"type": "integer", "description": "Page number (default 1)", "default": 1},
+                "contentId": {
+                    "type": "string",
+                    "description": (
+                        "Numeric content ID string from a search result (e.g. '264337'). "
+                        "Must come from an active search call — do not guess."
+                    ),
+                },
+                "contentTypeId": {
+                    "type": "string",
+                    "description": (
+                        "Optional. Content type of the item — pass when known from the search result. "
+                        + _CONTENT_TYPE_DESC
+                    ),
+                    "enum": _CONTENT_TYPE_ENUM,
+                },
                 "defaultYN": {"type": "string", "description": "Include default info (Y/N, default Y)", "enum": _YN_ENUM},
                 "firstImageYN": {"type": "string", "description": "Include representative image (Y/N, default Y)", "enum": _YN_ENUM},
                 "areacodeYN": {"type": "string", "description": "Include area code (Y/N, default Y)", "enum": _YN_ENUM},
