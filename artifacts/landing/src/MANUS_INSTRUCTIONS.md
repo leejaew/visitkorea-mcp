@@ -4,7 +4,7 @@
 
 This MCP server provides direct, structured access to the **Korea Tourism Organization (KTO) General Tourism dataset**, officially published on [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do) under the service ID `EngService2`. The data covers all major tourism categories across South Korea — tourist attractions, cultural facilities, accommodations, restaurants, shopping venues, leisure and sports facilities, and festivals and events.
 
-The server exposes **14 tools** over Streamable HTTP. Each tool wraps one API endpoint from the KTO open API, normalises the response, and returns clean structured data. No data is cached or synthesised — every call returns live data from the official KTO dataset.
+The server exposes **14 tools** over Streamable HTTP. Each tool wraps one API endpoint from the KTO open API, normalises the response, and returns clean structured data. Responses are cached briefly to protect upstream API quota — reference/code-lookup endpoints are cached for 1 hour; search and detail endpoints are cached for up to 5 minutes. Empty results are never cached.
 
 ---
 
@@ -30,7 +30,9 @@ Do **not** use this MCP for tourism destinations outside South Korea, real-time 
 
 ## Data Model: How Records Are Structured
 
-Every tourism venue in the dataset has a unique **`contentId`** (e.g. `"130987"`). Most workflows start with a search that returns a list of summary records, and then optionally deepen into detail records using that `contentId`.
+Every tourism venue in the dataset has a unique **`contentId`** (e.g. `"264337"`). Most workflows start with a search that returns a list of summary records, and then optionally deepen into detail records using that `contentId`.
+
+> **Important:** Always obtain `contentId` values from a live search tool call in the same session. Do not guess or reuse IDs from memory — the KTO dataset is updated regularly and an invalid `contentId` will return an empty result.
 
 Each search result includes:
 - `contentId` — unique record identifier
@@ -158,7 +160,7 @@ Detail tools add: full overview text, homepage URL, type-specific introductory f
 **When to call it:** Call this tool first whenever the user specifies a Korean region by name (e.g. "in Seoul", "near Busan", "in Gangwon-do") and you do not already know the exact code from the table above.
 
 **Key parameters:**
-- `areaCode` — leave empty to get all province/city codes; set to a code to get its districts
+- `lDongRegnCd` — leave empty to get all 17 province/city codes; pass a province code to get its district codes
 - `numOfRows` — increase to `50`+ to retrieve all provinces in one call
 
 ---
@@ -234,7 +236,7 @@ Detail tools add: full overview text, homepage URL, type-specific introductory f
 - `eventStartDate` — start date in `YYYYMMDD` format (e.g. `"20260101"`)
 
 **Key parameters:**
-- `eventEndDate` — end of the search window (default: same as start date)
+- `eventEndDate` — end of the search window in `YYYYMMDD` format
 - `lDongRegnCd` — filter by province
 - `arrange` — `"A"` alphabetical or `"C"` most recent
 
@@ -266,7 +268,10 @@ Detail tools add: full overview text, homepage URL, type-specific introductory f
 **When to call it:** Always call this after a search when the user wants full details about a specific venue — address, phone, overview text, GPS, and homepage URL.
 
 **Required parameters:**
-- `contentId` — the `contentId` from any search result
+- `contentId` — the `contentId` from a search result obtained in the current session
+
+**Optional parameters:**
+- `contentTypeId` — pass when known from the search result; improves response completeness
 
 **Returns:**
 - `title`, full `addr1` + `addr2`, `zipcode`, `tel`
@@ -274,6 +279,8 @@ Detail tools add: full overview text, homepage URL, type-specific introductory f
 - `homepage` — may contain raw HTML anchor tags; extract the URL before displaying
 - `mapX` / `mapY` — GPS coordinates
 - `createdtime` / `modifiedtime` — record timestamps
+
+> If the response contains a `hint` field, it explains why no data was returned (e.g. invalid content ID or item removed from the dataset).
 
 ---
 
@@ -342,22 +349,30 @@ Detail tools add: full overview text, homepage URL, type-specific introductory f
 
 ### Tool 11 — `get_sync_list`
 
-**Purpose:** Retrieve content items updated since a given modification timestamp — useful for maintaining a local cache of tourism data.
+**Purpose:** Retrieve content items updated since a given modification date — useful for maintaining a local cache of tourism data.
 
 **When to call it:** When the user asks to see all venues updated since a specific date, or when a system needs to refresh its local dataset without re-fetching everything.
 
 **Key parameters:**
-- `modifiedtime` — ISO timestamp (e.g. `"20260101000000"`) — returns items modified on or after this date
+- `modifiedtime` — date in `YYYYMMDD` format (e.g. `"20260101"`) — returns items modified on or after this date; omit for full list
 - `contentTypeId` — filter by category
-- `areaCode` — filter by province
+- `lDongRegnCd` — filter by province (new system code)
+- `showflag` — `"1"` for displayed content only, `"0"` for hidden only; omit for all
+- `oldContentid` — look up the current content ID for a legacy content ID
 
 ---
 
-### Tool 12 — `get_legal_district_codes`
+### Tool 12 — `get_classification_codes`
 
-**Purpose:** Retrieve legal administrative district codes (`lDongRegnCd`, `lDongSignguCd`) used in new-system filtering.
+**Purpose:** Browse the new-system 3-level tourism classification hierarchy (`lclsSystm1` / `lclsSystm2` / `lclsSystm3`). Used with search tools that accept `lclsSystm1/2/3` filters.
 
-See **Tool 1** above (`get_area_codes` is the legacy equivalent).
+**When to call it:** When you need to filter searches by a specific classification (e.g. only palace-type attractions, only ski resorts within leisure).
+
+**Key parameters:**
+- `lclsSystm1` — level-1 code (e.g. `"VE"` = Culture/Arts/History). Leave empty for all level-1 codes.
+- `lclsSystm2` — level-2 code (requires `lclsSystm1`)
+- `lclsSystm3` — level-3 code (requires `lclsSystm1` + `lclsSystm2`)
+- `lclsSystmListYn` — `"Y"` to retrieve the full flat list in one call
 
 ---
 
@@ -368,7 +383,7 @@ See **Tool 1** above (`get_area_codes` is the legacy equivalent).
 **When to call it:** When you need to filter by `areaCode` rather than `lDongRegnCd`, or when looking up district codes (`sigunguCode`) within a province.
 
 **Key parameters:**
-- `areaCode` — leave empty for all province codes; set to a province code to get its districts
+- `areaCode` — leave empty for all province codes; pass a province code to get its district codes
 
 ---
 
@@ -401,13 +416,13 @@ See **Tool 1** above (`get_area_codes` is the legacy equivalent).
 ### Workflow C — Event Planning
 
 1. Establish the travel dates from the user
-2. **`search_festivals_and_events`** → pass `eventStartDate` and `eventEndDate`; optionally filter by `lDongRegnCd`
+2. **`search_festivals_and_events`** → pass `eventStartDate` and `eventEndDate` in `YYYYMMDD` format; optionally filter by `lDongRegnCd`
 3. **`get_tourism_common_info`** → retrieve venue details and overview for events the user wants to explore
 
 ### Workflow D — Venue Deep-Dive (full detail)
 
 1. Obtain `contentId` and `contentTypeId` from any search result
-2. Call **`get_tourism_common_info`** → title, address, overview, GPS, homepage
+2. Call **`get_tourism_common_info`** → title, address, overview, GPS, homepage; pass `contentTypeId` when available
 3. Call **`get_tourism_intro_info`** → operating hours, fees, rest days, type-specific fields
 4. Call **`get_tourism_detail_info`** → room types / menu items / programme details (if relevant)
 5. Call **`get_tourism_images`** → photo gallery for visual presentation
@@ -425,4 +440,4 @@ See **Tool 1** above (`get_area_codes` is the legacy equivalent).
 - **Homepage field may contain HTML** — the `homepage` field in common info sometimes returns a raw `<a href="...">` anchor tag rather than a plain URL. Extract the `href` value before presenting it to the user.
 - **Images may be empty** — not all venues have registered images. Check `firstimage` in search results before calling `get_tourism_images` to avoid unnecessary calls.
 - **Pagination** — all search tools return `totalCount` alongside results. Use `pageNo` and `numOfRows` to paginate through large result sets; default `numOfRows` is `10`.
-- **Live data** — every call fetches from the live KTO API via data.go.kr; results reflect the current published dataset with no local caching.
+- **Response caching** — reference code lookups (`get_legal_district_codes`, `get_area_codes`, `get_classification_codes`, `get_category_codes`) are cached for 1 hour. Search and detail results are cached for up to 5 minutes. Empty results are never cached, so retrying a failed call will always reach the live API.

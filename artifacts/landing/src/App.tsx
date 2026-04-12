@@ -233,9 +233,9 @@ export default function App() {
             <p className="text-xs text-muted-foreground mt-0.5">Korea Public Data Portal</p>
           </div>
           <div className="bg-white border border-border rounded-xl px-5 py-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Refresh Cycle</p>
-            <p className="text-sm font-medium text-foreground">Real-time</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Live API calls on every request</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Caching</p>
+            <p className="text-sm font-medium text-foreground">TTL Cache</p>
+            <p className="text-xs text-muted-foreground mt-0.5">1 h codes · 5 min search results</p>
           </div>
           <div className="bg-white border border-border rounded-xl px-5 py-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">Transport</p>
