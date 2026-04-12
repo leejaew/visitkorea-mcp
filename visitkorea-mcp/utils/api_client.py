@@ -206,7 +206,11 @@ async def call_api(endpoint: str, params: Optional[dict] = None) -> dict:
         raise RuntimeError("Korea Tourism API returned a non-JSON response.") from None
 
     result = _parse_envelope(data)
-    if result.get("success"):
+    # Only cache non-empty successful results.  An empty result (totalCount=0)
+    # may be a transient data-availability issue on the KTO side — caching it
+    # for 5 minutes would lock an AI agent into a stale "no data" response on
+    # every retry within that window.
+    if result.get("success") and result.get("totalCount", 0) > 0:
         cache.set(ck, result, cache.ttl_for(endpoint))
 
     return result
