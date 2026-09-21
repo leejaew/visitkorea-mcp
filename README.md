@@ -1,196 +1,208 @@
 # VisitKorea MCP Server
 
-![Python](https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white)
-![Node.js](https://img.shields.io/badge/node.js-20+-339933?logo=node.js&logoColor=white)
-![MCP Transport](https://img.shields.io/badge/MCP-Streamable_HTTP-8B5CF6)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![MCP SDK 1.27.0](https://img.shields.io/badge/MCP%20SDK-1.27.0-8B5CF6)](https://pypi.org/project/mcp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An open-source **Model Context Protocol (MCP) server** that connects AI agents — Claude, Manus AI, and any MCP-compatible client — with the **Korea Tourism Organization (KTO) General Tourism Open Data API** (`EngService2`), published on [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do).
+## Overview
 
-Exposes **14 structured MCP tools** covering area search, GPS-radius search, keyword search, festivals, accommodations, detailed venue info, image galleries, sync lists, and four reference code lookup tables — all in English.
+VisitKorea MCP Server is an installable Python 3.11+ Model Context Protocol
+(MCP) server for the Korea Tourism Organization (KTO) English Tourism
+Information Service API, `EngService2`. It gives MCP clients structured access
+to English tourism data from [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do).
 
----
+The primary application exposes exactly 14 tools in stable order. It supports
+MCP stdio for local clients and stateless Streamable HTTP for remote clients.
+The repository also contains an optional Node.js proxy and a separate Vite
+landing workspace.
+
+## Key Features
+
+- Area, location, keyword, festival, and accommodation searches
+- Common, introductory, detailed, and image information for tourism content
+- Delta synchronization for changed or added content
+- New legal district and classification code lookups
+- Legacy area and category code lookups
+- Input validation, safe error responses, retries, caching, and upstream rate limiting
+- Isolated client, cache, and rate limiter state for each constructed server
+
+## Tech Stack
+
+| Layer | Technology |
+| --- | --- |
+| MCP server | Python, MCP SDK 1.27.0 |
+| HTTP transport | Starlette, Uvicorn, stateless Streamable HTTP |
+| Upstream client | HTTPX |
+| External service | KTO EngService2 at `apis.data.go.kr` |
+| Optional proxy | Node.js, Express, Helmet, CORS, `express-rate-limit` |
+| Optional landing workspace | React and Vite |
+| Package managers | pip for Python, pnpm for the optional Node workspace |
+| License | MIT |
 
 ## Architecture
 
-```
-MCP Client (Claude / Manus AI)
-        │  Streamable HTTP  POST /mcp
-        ▼
-Node.js / Express  (port $PORT)
-  ├─ helmet          — 11 security headers
-  ├─ express-rate-limit — 120 req/min per IP
-  ├─ pino-http       — structured request logging (no query strings)
-  └─ http-proxy-middleware → http://127.0.0.1:3001/mcp
-        │
-        ▼
-Python / Starlette + MCP SDK  (127.0.0.1:3001, loopback only)
-  └─ visitkorea-mcp/src/mcp_server/
-     ├─ __main__.py, main.py — package and compatibility process entry points
-     ├─ server.py             — constructible MCP server and dependency wiring
-     ├─ tools/                — thin adapters, registry, and 14 schemas
-     ├─ services/             — ordinary-Python tourism workflows and validation
-     ├─ clients/              — KTO HTTP client, cache, retries, rate limiter
-     ├─ transports/           — stdio and Streamable HTTP adapters
-     ├─ config/               — validated environment configuration
-     ├─ observability/        — stderr-only application logging
-     └─ errors/               — application error definitions
-        │
-        ▼
-KTO EngService2 API  (apis.data.go.kr)
+The deployed default is the Python server. It binds to `127.0.0.1:3001` by
+default and exposes `/mcp` and `/healthz` in HTTP mode.
+
+```mermaid
+flowchart LR
+    Client[MCP client] --> Transport[Python MCP transport]
+    Transport --> Registry[Ordered tool registry]
+    Registry --> Tools[Thin tool adapters]
+    Tools --> Service[TourismService and validation]
+    Service --> ClientLayer[KTOClient, cache, retries, rate limiter]
+    ClientLayer --> KTO[KTO EngService2 API]
+
+    Optional[Optional Node proxy] -. forwards /mcp .-> Transport
+    Landing[Optional Vite landing workspace] -. separate frontend .-> Optional
 ```
 
-The Python server binds only to `127.0.0.1` — it is never directly reachable from outside. All external traffic goes through the Node.js proxy, which applies security headers and rate limiting before forwarding.
+The optional Node proxy can add Helmet headers, open CORS, a 120 requests per
+minute per IP limit on `/mcp`, query-stripped request logging, and a 35 second
+proxy timeout. The current Replit deployment runs Python directly, so those
+proxy protections do not apply there.
 
----
+## Tools
 
-## Features
+All tools return structured JSON text through MCP. Parameter schemas are
+maintained in
+[`visitkorea-mcp/src/mcp_server/tools/schemas`](visitkorea-mcp/src/mcp_server/tools/schemas)
+and endpoint mappings are described in
+[`visitkorea-mcp/docs/capabilities.md`](visitkorea-mcp/docs/capabilities.md).
 
-| # | MCP Tool | KTO Endpoint | Description |
-|---|---|---|---|
-| 1 | `search_tourism_by_area` | `areaBasedList2` | Search tourism content by province, city, or district |
-| 2 | `search_tourism_by_location` | `locationBasedList2` | Find venues within a GPS radius (up to 20 km), sorted by distance |
-| 3 | `search_tourism_by_keyword` | `searchKeyword2` | Full-text English keyword search across all content types |
+| # | Tool | KTO endpoint | Purpose |
+| ---: | --- | --- | --- |
+| 1 | `search_tourism_by_area` | `areaBasedList2` | Search by province, city, district, content type, or category |
+| 2 | `search_tourism_by_location` | `locationBasedList2` | Search within a GPS radius, sorted by distance |
+| 3 | `search_tourism_by_keyword` | `searchKeyword2` | Search tourism content by English keyword |
 | 4 | `search_festivals_and_events` | `searchFestival2` | Search festivals and events by date range |
-| 5 | `search_accommodations` | `searchStay2` | Browse hotels, pensions, guesthouses, condominiums, and camping sites |
-| 6 | `get_tourism_common_info` | `detailCommon2` | Overview record: title, address, GPS, phone, homepage, description |
-| 7 | `get_tourism_intro_info` | `detailIntro2` | Type-specific intro: opening hours, fees, rest days, parking |
-| 8 | `get_tourism_detail_info` | `detailInfo2` | Repeating details: room types, menu items, programme schedules |
-| 9 | `get_tourism_images` | `detailImage2` | All image URLs and copyright types for a venue |
-| 10 | `get_sync_list` | `areaBasedSyncList2` | Delta sync list — content modified since a given timestamp |
-| 11 | `get_legal_district_codes` | `ldongCode2` | New-system province/city codes (`lDongRegnCd`, `lDongSignguCd`) |
-| 12 | `get_classification_codes` | `lclsSystmCode2` | New-system 3-level classification hierarchy (`lclsSystm1/2/3`) |
-| 13 | `get_area_codes` | `areaCode2` | Legacy area codes (`areaCode`, `sigunguCode`) |
-| 14 | `get_category_codes` | `categoryCode2` | Legacy category hierarchy (`cat1`, `cat2`, `cat3`) |
+| 5 | `search_accommodations` | `searchStay2` | Search hotels, pensions, guesthouses, and camping sites |
+| 6 | `get_tourism_common_info` | `detailCommon2` | Get overview, address, coordinates, contact, and description data |
+| 7 | `get_tourism_intro_info` | `detailIntro2` | Get content type specific introductory fields |
+| 8 | `get_tourism_detail_info` | `detailInfo2` | Get repeating details such as rooms, menus, or programmes |
+| 9 | `get_tourism_images` | `detailImage2` | Get image URLs and image copyright types |
+| 10 | `get_sync_list` | `areaBasedSyncList2` | Get content added or modified after a timestamp |
+| 11 | `get_legal_district_codes` | `ldongCode2` | Look up the new legal district code system |
+| 12 | `get_classification_codes` | `lclsSystmCode2` | Look up the new classification hierarchy |
+| 13 | `get_area_codes` | `areaCode2` | Look up legacy province and district codes |
+| 14 | `get_category_codes` | `categoryCode2` | Look up the legacy category hierarchy |
 
-### Dual Code System
+## Repository Structure
 
-The API supports two parallel geographic and category code systems — both are fully supported:
-
-| System | Look up codes with | Use in |
-|---|---|---|
-| **New** — `lDongRegnCd`, `lDongSignguCd`, `lclsSystm1/2/3` | `get_legal_district_codes`, `get_classification_codes` | All search tools |
-| **Legacy** — `areaCode`, `sigunguCode`, `cat1/2/3` | `get_area_codes`, `get_category_codes` | `search_tourism_by_area` |
-
----
-
-## Prerequisites
-
-- **Python 3.11+**
-- **Node.js 20+** with **pnpm** (the project uses a pnpm workspace)
-- A **KTO Open API service key** from [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do)
-
----
-
-## Quickstart on Replit
-
-1. **Fork this project** into your Replit account.
-2. **Get a KTO API key** — register at [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do) and apply for the `한국관광공사_영문_관광정보서비스` dataset (approval is usually instant).
-3. **Add the secret** — open the **Secrets** panel in Replit and create:
-
-   | Secret name | Value |
-   |---|---|
-   | `VISITKOREA_API_KEY` | Your service key (either the URL-encoded "Encoding key" or the plain "Decoding key" — both work) |
-
-4. **Click Run** — Replit starts the Node.js proxy, which automatically installs Python dependencies and spawns the Python MCP server.
-
-Endpoints once running:
-
-| Path | Description |
-|---|---|
-| `/` | React landing page with connector JSON and setup instructions |
-| `/mcp` | MCP Streamable HTTP endpoint for AI agents |
-
----
-
-## Local Development Setup
-
-### 1. Install Node.js dependencies
-
-```bash
-pnpm install
+```text
+.
+├── visitkorea-mcp/
+│   ├── src/mcp_server/       Python package implementation
+│   ├── tests/                Unit, integration, contract, and security tests
+│   ├── docs/                 Architecture, capability, deployment, and security docs
+│   ├── main.py               Compatibility launcher
+│   ├── pyproject.toml        Package metadata and console entry point
+│   └── requirements.txt      Direct runtime compatibility pins
+├── artifacts/
+│   ├── api-server/           Optional Node proxy
+│   └── landing/              Optional Vite landing workspace
+├── .github/workflows/ci.yml  Python and workspace checks
+├── .replit                   Replit deployment configuration
+├── pnpm-workspace.yaml       Optional Node workspace configuration
+└── LICENSE
 ```
 
-### 2. Install Python dependencies
+## Requirements
+
+### Required Python application
+
+- Python 3.11 or newer
+- pip
+- A KTO Open API service key from
+  [data.go.kr](https://www.data.go.kr/data/15101753/openapi.do)
+
+### Optional Node workspace
+
+- Node.js 24 for the configured CI and workspace environment
+- pnpm
+
+The Node workspace is not required to run the Python MCP server.
+
+## Environment Variables
+
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `VISITKOREA_API_KEY` | Yes | None | KTO service key. The value is URL-decoded at startup. |
+| `PORT` | No for Python | `3001` | Python HTTP port. The Node proxy requires this variable for its public port. |
+| `VISITKOREA_TIMEOUT` | No | `30` | Python upstream request timeout in seconds. |
+| `PYTHON_PORT` | No for Node proxy | `3001` | Port used by the Node proxy to reach its Python child process. |
+
+Use [`visitkorea-mcp/.env.example`](visitkorea-mcp/.env.example) as a
+configuration reference. The application does not load `.env` files
+automatically, so export variables in the process environment or use a secret
+manager. Do not commit the API key. For Replit, store
+`VISITKOREA_API_KEY` in Secrets.
+
+## Installation
+
+Install the Python package in editable mode from the repository root:
 
 ```bash
 python -m pip install -e visitkorea-mcp
 ```
 
-Python dependencies:
+The package installs the pinned MCP SDK, HTTPX, Uvicorn, and Starlette
+dependencies declared in
+[`visitkorea-mcp/pyproject.toml`](visitkorea-mcp/pyproject.toml).
 
-| Package | Version | Purpose |
-|---|---|---|
-| `mcp` | 1.27.0 | MCP SDK, server, tools, and Streamable HTTP transport |
-| `httpx` | 0.28.1 | Async HTTP client with connection pooling |
-| `uvicorn` | 0.44.0 | ASGI server |
-| `starlette` | 1.0.0 | ASGI routing and lifespan management |
+## Local Development
 
-### 3. Set your API key
+Set the required key before starting a server:
 
 ```bash
 export VISITKOREA_API_KEY="your_service_key_here"
 ```
 
-### 4. Start the server
+### Stdio
 
-**Option A — Full stack (Node.js proxy + Python MCP):**
-
-```bash
-pnpm --filter @workspace/api-server run dev
-```
-
-The Node.js proxy starts on `$PORT` (or 8080 by default) and spawns the Python server on `127.0.0.1:3001`.
-
-**Option B — Python only, stdio mode (Claude Desktop / local CLI):**
+Use stdio for local MCP clients:
 
 ```bash
-python3 visitkorea-mcp/main.py
+python visitkorea-mcp/main.py
 ```
 
-**Option C — Python only, HTTP mode:**
+After editable installation, these equivalent commands are available:
 
 ```bash
-python3 visitkorea-mcp/main.py --http --port 3001
+python -m mcp_server
+visitkorea-mcp
 ```
 
----
+Stdout is reserved for MCP protocol messages. Application logs go to stderr.
 
-## Connecting an AI Agent
+### Streamable HTTP
 
-### MCP Connector JSON (Claude AI / Manus AI)
+Start the Python HTTP server directly:
 
-Paste this into your AI agent's custom connector settings:
-
-```json
-{
-  "mcpServers": {
-    "visitkorea": {
-      "type": "streamableHttp",
-      "url": "https://<your-repl-name>.replit.app/mcp"
-    }
-  }
-}
+```bash
+python visitkorea-mcp/main.py --http --port 3001
 ```
 
-Replace the URL with your own deployed Replit project URL.
+After installation, the package entry point supports the same mode:
 
----
+```bash
+python -m mcp_server --http --port 3001
+visitkorea-mcp --http --port 3001
+```
 
-### Claude AI (claude.ai) — Custom Connector
+The default host is `127.0.0.1`. The HTTP routes are:
 
-| Field | Value |
-|---|---|
-| **Name** | `VisitKorea Tourism` |
-| **Remote MCP server URL** | `https://<your-repl-name>.replit.app/mcp` |
-| **OAuth Client ID** | *(leave blank)* |
-| **OAuth Client Secret** | *(leave blank)* |
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/mcp` | GET, POST, DELETE | Stateless Streamable HTTP MCP transport |
+| `/healthz` | GET | Returns `200` when ready and `503` while starting |
 
----
+## MCP Client Configuration
 
-### Claude Desktop — `claude_desktop_config.json`
+### Local stdio client
 
-Runs the Python server in stdio mode (no Node.js proxy needed):
+Use an absolute path to the compatibility launcher in an MCP client
+configuration:
 
 ```json
 {
@@ -206,386 +218,191 @@ Runs the Python server in stdio mode (no Node.js proxy needed):
 }
 ```
 
-Replace `/absolute/path/to/` with the actual path to the cloned repository on your machine.
-
----
-
-## Tool Reference
-
-### Tool 1 — `search_tourism_by_area`
-
-List tourism spots filtered by administrative region, content type, and/or category codes.
-
-**Endpoint:** `GET /areaBasedList2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `numOfRows` | int | No | Results per page (default 10, max 100) |
-| `pageNo` | int | No | Page number (default 1) |
-| `arrange` | string | No | Sort: `A`=title, `C`=modified (default), `D`=created; `O`/`Q`/`R`=image-only variants |
-| `contentTypeId` | string | No | Content type filter (see Content Types table) |
-| `lDongRegnCd` | string | No | Province code — use `get_legal_district_codes` |
-| `lDongSignguCd` | string | No | City/county code — requires `lDongRegnCd` |
-| `lclsSystm1` | string | No | Classification level-1 code |
-| `lclsSystm2` | string | No | Classification level-2 code — requires `lclsSystm1` |
-| `lclsSystm3` | string | No | Classification level-3 code — requires `lclsSystm1` + `lclsSystm2` |
-| `modifiedtime` | string | No | Modified-date filter (YYYYMMDD) |
-| `areaCode` | string | No | Legacy province code — use `get_area_codes` |
-| `sigunguCode` | string | No | Legacy district code — requires `areaCode` |
-| `cat1` / `cat2` / `cat3` | string | No | Legacy category hierarchy — use `get_category_codes` |
-
----
-
-### Tool 2 — `search_tourism_by_location`
-
-Find tourism spots within a GPS radius, sorted by proximity.
-
-**Endpoint:** `GET /locationBasedList2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `mapX` | float | **Yes** | GPS longitude, WGS84 (e.g. `126.9784` for central Seoul) |
-| `mapY` | float | **Yes** | GPS latitude, WGS84 (e.g. `37.5665` for central Seoul) |
-| `radius` | int | **Yes** | Search radius in metres (1–20,000) |
-| `numOfRows` | int | No | Results per page (default 10) |
-| `pageNo` | int | No | Page number (default 1) |
-| `arrange` | string | No | Sort: `A`/`C`/`D` or image variants `O`/`Q`/`R` |
-| `contentTypeId` | string | No | Content type filter |
-| `lDongRegnCd` | string | No | Province code filter |
-| `lDongSignguCd` | string | No | City/county code filter |
-| `lclsSystm1/2/3` | string | No | Classification hierarchy filters |
-
----
-
-### Tool 3 — `search_tourism_by_keyword`
-
-Full-text keyword search across all tourism content.
-
-**Endpoint:** `GET /searchKeyword2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `keyword` | string | **Yes** | English search term (e.g. `"Gyeongbokgung"`, `"Jeju"`, `"temple"`) |
-| `numOfRows` | int | No | Results per page (default 10) |
-| `pageNo` | int | No | Page number (default 1) |
-| `arrange` | string | No | Sort order |
-| `contentTypeId` | string | No | Content type filter |
-| `lDongRegnCd` | string | No | Province code filter |
-| `lDongSignguCd` | string | No | City/county code filter |
-| `lclsSystm1/2/3` | string | No | Classification hierarchy filters |
-
----
-
-### Tool 4 — `search_festivals_and_events`
-
-Search festivals, performances, and cultural events by date range.
-
-**Endpoint:** `GET /searchFestival2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `eventStartDate` | string | **Yes** | Start date in YYYYMMDD format (e.g. `"20260101"`) |
-| `eventEndDate` | string | No | End date in YYYYMMDD format |
-| `numOfRows` | int | No | Results per page (default 10) |
-| `pageNo` | int | No | Page number (default 1) |
-| `arrange` | string | No | Sort order |
-| `modifiedtime` | string | No | Modified-date filter (YYYYMMDD) |
-| `lDongRegnCd` | string | No | Province code filter |
-| `lDongSignguCd` | string | No | City/county code filter |
-| `lclsSystm1/2/3` | string | No | Classification hierarchy filters |
-
----
-
-### Tool 5 — `search_accommodations`
-
-Search hotels, pensions, guesthouses, condominiums, and camping sites.
-
-**Endpoint:** `GET /searchStay2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `numOfRows` | int | No | Results per page (default 10) |
-| `pageNo` | int | No | Page number (default 1) |
-| `arrange` | string | No | Sort order |
-| `modifiedtime` | string | No | Modified-date filter (YYYYMMDD) |
-| `lDongRegnCd` | string | No | Province code filter |
-| `lDongSignguCd` | string | No | City/county code filter |
-| `lclsSystm1/2/3` | string | No | Classification hierarchy filters |
-
----
-
-### Tool 6 — `get_tourism_common_info`
-
-Common overview record for any venue: title, full address, GPS coordinates, phone number, homepage URL, content type, category codes, and description text.
-
-**Endpoint:** `GET /detailCommon2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `contentId` | string | **Yes** | Content ID from any search result |
-| `defaultYN` | string | No | Include default fields (`Y`/`N`, default `Y`) |
-| `firstImageYN` | string | No | Include representative image URL (`Y`/`N`, default `Y`) |
-| `areacodeYN` | string | No | Include area codes (`Y`/`N`, default `Y`) |
-| `catcodeYN` | string | No | Include category codes (`Y`/`N`, default `Y`) |
-| `addrinfoYN` | string | No | Include full address (`Y`/`N`, default `Y`) |
-| `mapinfoYN` | string | No | Include GPS coordinates (`Y`/`N`, default `Y`) |
-| `overviewYN` | string | No | Include overview description (`Y`/`N`, default `Y`) |
-
----
-
-### Tool 7 — `get_tourism_intro_info`
-
-Type-specific introductory details. Fields vary by content type: opening hours, admission fees, rest days, parking info, facility descriptions, age suitability.
-
-**Endpoint:** `GET /detailIntro2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `contentId` | string | **Yes** | Content ID from any search result |
-| `contentTypeId` | string | **Yes** | Must match the item's type (see Content Types table) |
-
----
-
-### Tool 8 — `get_tourism_detail_info`
-
-Repeating structured sub-records that vary by content type: room types and rates for accommodations, menu items for restaurants, programme schedules for events.
-
-**Endpoint:** `GET /detailInfo2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `contentId` | string | **Yes** | Content ID from any search result |
-| `contentTypeId` | string | **Yes** | Must match the item's type (see Content Types table) |
-
----
-
-### Tool 9 — `get_tourism_images`
-
-All image URLs for a venue, including the copyright type for each image.
-
-**Endpoint:** `GET /detailImage2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `contentId` | string | **Yes** | Content ID from any search result |
-| `imageYN` | string | No | `Y` = venue/exterior photos (default); `N` = food menu images (restaurants only) |
-
----
-
-### Tool 10 — `get_sync_list`
-
-Delta sync list — retrieve content items that were added or modified after a given timestamp. Useful for maintaining a local cached copy of KTO data.
-
-**Endpoint:** `GET /areaBasedSyncList2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `modifiedtime` | string | No | Return items modified on/after this date (YYYYMMDD). Omit for full list. |
-| `showflag` | string | No | `1` = displayed content only; `0` = hidden only; omit for all |
-| `contentTypeId` | string | No | Content type filter |
-| `oldContentid` | string | No | Look up the current content ID for a legacy content ID |
-| `lDongRegnCd` | string | No | Province code filter |
-| `lDongSignguCd` | string | No | City/county code filter |
-| `lclsSystm1/2/3` | string | No | Classification hierarchy filters |
-
----
-
-### Tool 11 — `get_legal_district_codes`
-
-Look up the new-system legal district codes used by `lDongRegnCd` and `lDongSignguCd` parameters. Response cached for 1 hour.
-
-**Endpoint:** `GET /ldongCode2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `lDongRegnCd` | string | No | Province code. Omit to get all 17 provinces; pass to get its city/county codes. |
-| `lDongListYn` | string | No | `Y` = return full flat list; `N` = paginated (default) |
-| `numOfRows` | int | No | Results per page (default 100) |
-
----
-
-### Tool 12 — `get_classification_codes`
-
-Browse the new-system 3-level classification hierarchy. Response cached for 1 hour.
-
-**Endpoint:** `GET /lclsSystmCode2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `lclsSystm1` | string | No | Level-1 code (e.g. `AC`, `EV`). Omit to get all level-1 codes. |
-| `lclsSystm2` | string | No | Level-2 code — requires `lclsSystm1` |
-| `lclsSystm3` | string | No | Level-3 code — requires `lclsSystm1` + `lclsSystm2` |
-| `lclsSystmListYn` | string | No | `Y` = full flat list; `N` = paginated (default) |
-
----
-
-### Tool 13 — `get_area_codes`
-
-Look up the legacy-system area codes (`areaCode`, `sigunguCode`). Response cached for 1 hour.
-
-**Endpoint:** `GET /areaCode2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `areaCode` | string | No | Province code. Omit to get all 17 provinces; pass to get its districts. |
-| `numOfRows` | int | No | Results per page (default 50) |
-
----
-
-### Tool 14 — `get_category_codes`
-
-Browse the legacy 3-level category hierarchy (`cat1`/`cat2`/`cat3`). Response cached for 1 hour.
-
-**Endpoint:** `GET /categoryCode2`
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `cat1` | string | No | Level-1 code (e.g. `A01`=Nature, `A02`=Culture). Omit for all. |
-| `cat2` | string | No | Level-2 code — requires `cat1` |
-| `contentTypeId` | string | No | Filter categories to a specific content type |
-| `numOfRows` | int | No | Results per page (default 100) |
-
----
-
-## Reference Tables
-
-### Content Types (`contentTypeId`)
-
-| ID | English | Korean |
-|---|---|---|
-| `75` | Leisure / Sports | 레포츠 |
-| `76` | Tourist Attraction | 관광지 |
-| `78` | Cultural Facility | 문화시설 |
-| `79` | Shopping | 쇼핑 |
-| `80` | Accommodation | 숙박 |
-| `82` | Restaurant / Food | 음식점 |
-| `85` | Festival / Performance / Event | 축제공연행사 |
-
-### Province Codes (`lDongRegnCd`)
-
-| Code | Province / City |
-|---|---|
-| `11` | Seoul (서울) |
-| `26` | Busan (부산) |
-| `27` | Daegu (대구) |
-| `28` | Incheon (인천) |
-| `29` | Gwangju (광주) |
-| `30` | Daejeon (대전) |
-| `31` | Ulsan (울산) |
-| `36` | Sejong (세종) |
-| `41` | Gyeonggi (경기) |
-| `42` | Gangwon (강원) |
-| `43` | Chungbuk (충북) |
-| `44` | Chungnam (충남) |
-| `45` | Jeonbuk (전북) |
-| `46` | Jeonnam (전남) |
-| `47` | Gyeongbuk (경북) |
-| `48` | Gyeongnam (경남) |
-| `50` | Jeju Island (제주) |
-
-### Classification Codes (`lclsSystm1`)
-
-| Code | Category |
-|---|---|
-| `AC` | Accommodation |
-| `EV` | Festivals / Performances / Events |
-| `EX` | Experience Tourism |
-| `FO` | Food & Dining |
-| `LC` | Leisure & Sports |
-| `SH` | Shopping |
-| `TR` | Transportation |
-| `VE` | Culture / Arts / History |
-
----
-
-## Project Structure
-
-```
-visitkorea-mcp/          Python MCP server package
-├── pyproject.toml        Installable src-layout package and console entry point
-├── main.py               Compatibility launcher for existing client configs
-├── src/mcp_server/       Implementation package
-├── requirements.txt      Python dependency compatibility file
-├── tests/                Unit, integration, contract, and security tests
-└── docs/                 Architecture, capability, security, and deployment docs
-
-artifacts/
-├── api-server/          Node.js reverse proxy
-│   └── src/
-│       ├── app.ts       Express — helmet, rate limiting, pino-http, /mcp proxy
-│       └── index.ts     Spawns Python server on port 3001, starts Express on $PORT
-└── landing/             React landing page (Vite)
-    └── src/App.tsx      Connector JSON, Claude/Manus setup, tool list
+### Remote Streamable HTTP client
+
+Use the deployment-specific URL. No public URL is assigned by this
+repository:
+
+```json
+{
+  "mcpServers": {
+    "visitkorea": {
+      "type": "streamableHttp",
+      "url": "https://your-deployment.example/mcp"
+    }
+  }
+}
 ```
 
----
+OAuth and client authentication are not implemented by this server.
 
-## Security & Performance
+## Build and Packaging
 
-### Python package layout
-
-The Python implementation is an installable src-layout package under
-`visitkorea-mcp/src/mcp_server`. `main.py` remains a compatibility launcher
-for documented client configurations. Tool adapters are thin; tourism
-workflows live in `services/`, upstream HTTP behavior lives in `clients/`,
-and transport-specific behavior lives in `transports/`. Install it with:
-
-```bash
-python -m pip install -e visitkorea-mcp
-python -m mcp_server
-```
-
-The detailed package architecture and deployment notes are in
-`visitkorea-mcp/docs/`.
-
-| Layer | Feature | Detail |
-|---|---|---|
-| Node.js | Security headers | `helmet` — sets 11 HTTP security headers on every response |
-| Node.js | Rate limiting | `express-rate-limit` — 120 req/min per IP on `/mcp`; loopback exempt |
-| Node.js | Structured logging | `pino-http` — query strings stripped from logs (no API key leakage) |
-| Node.js | Proxy timeout | 35 s — slightly above Python's 30 s httpx timeout |
-| Python | Loopback binding | Server binds `127.0.0.1` only — not reachable directly from outside |
-| Python | Connection pool | Shared `httpx.AsyncClient` — TCP keep-alive reused across all tool calls |
-| Python | Response cache | In-memory TTL cache — 1 h for static reference endpoints, 5 min for search |
-| Python | Token bucket | 10 upstream req/min (burst 5) — protects the 1,000 req/day KTO quota |
-| Python | Retry logic | 3 attempts with exponential back-off on 5xx / network errors |
-| Python | API key masking | Raw key redacted from all error messages and log output |
-| Python | Input validation | GPS bounding box, radius [1–20,000 m], date YYYYMMDD, pagination clamp |
-| Python | Access log off | `uvicorn access_log=False` — request URLs (containing `serviceKey`) never logged |
-
----
-
-## API Key Registration
-
-1. Visit [https://www.data.go.kr/data/15101753/openapi.do](https://www.data.go.kr/data/15101753/openapi.do)
-2. Sign in or create a 공공데이터포털 account
-3. Click **활용신청** (Request API access)
-4. After approval (usually instant), go to My Page and copy your **일반 인증키 (Encoding)** service key
-5. Add it to Replit Secrets as `VISITKOREA_API_KEY`
-
-> Both the URL-encoded "Encoding key" and the plain "Decoding key" work. The server normalises whichever form you provide using `urllib.parse.unquote()` at startup.
-
-> Never commit the key to any source file. Always store it via the Replit Secrets panel or a `.env` file that is listed in `.gitignore`.
-
----
-
-## Contributing
-
-Contributions are welcome. Please open an issue before submitting a pull request. Run the offline test suite and TypeScript checks before using the optional live API for manual verification:
+Build a wheel from the Python package directory:
 
 ```bash
 cd visitkorea-mcp
-python3 -m unittest discover -s tests -v
-cd ..
-pnpm --filter @workspace/api-server run typecheck
+python -m pip wheel --no-deps --no-build-isolation -w dist .
 ```
 
-Never commit API keys. Live API verification should use `VISITKOREA_API_KEY` from the environment.
+The wheel is written to `visitkorea-mcp/dist`. The compatibility launcher
+remains available from the source checkout for existing client configurations.
 
----
+## Testing and Code Quality
 
-## License
+Run the Python test suite:
 
-MIT License — see [LICENSE](LICENSE) for full text.
+```bash
+cd visitkorea-mcp
+python -m unittest discover -s tests -v
+```
 
-Tourism data provided by the **Korea Tourism Organization (KTO)** via the 공공데이터포털 open API platform (`data.go.kr`). Data usage is subject to KTO terms — attribution is required for `Type1` content; `Type3` content additionally prohibits modification.
+Run the other configured Python checks:
+
+```bash
+python -m compileall -q src
+python -m pip wheel --no-deps --no-build-isolation -w /tmp/visitkorea-dist .
+```
+
+The repository does not define a separate Python lint command. The root CI
+workflow also attempts Node dependency installation and workspace type
+checking. Those optional checks are currently affected by missing workspace
+packages described in [Known Limitations](#known-limitations).
+
+## Optional Node Proxy and Landing Workspace
+
+The Node proxy in `artifacts/api-server` can spawn the Python HTTP server and
+forward `/mcp`. Its entry point requires `PORT` and accepts optional
+`PYTHON_PORT`, which defaults to `3001`:
+
+```bash
+export VISITKOREA_API_KEY="your_service_key_here"
+export PORT="8080"
+pnpm --filter @workspace/api-server run dev
+```
+
+The landing workspace is a separate Vite application:
+
+```bash
+pnpm --filter @workspace/landing run dev
+```
+
+The landing page is not served at the API root by the Python server or the
+current Node proxy. These commands require the workspace packages listed in
+`pnpm-workspace.yaml` to be present.
+
+## Deployment
+
+### Replit autoscale
+
+The configured `.replit` deployment runs:
+
+```bash
+python3.11 visitkorea-mcp/main.py --http
+```
+
+Before deployment, add `VISITKOREA_API_KEY` to Secrets. The Python server
+defaults to `127.0.0.1:3001`; the public URL is assigned by the deployment
+platform. The direct Python deployment does not add the Node proxy's headers,
+rate limiting, or request logging.
+
+### Self-hosted HTTP
+
+Install the package, set the key, and start the server:
+
+```bash
+python -m pip install -e visitkorea-mcp
+export VISITKOREA_API_KEY="your_service_key_here"
+export PORT="3001"
+python visitkorea-mcp/main.py --http
+```
+
+Place public HTTP deployments behind an access controlled and rate limited
+gateway appropriate for the deployment.
+
+## Security Notes
+
+- Keep `VISITKOREA_API_KEY` in the environment or a secret manager. Never
+  commit it.
+- The server URL-decodes the key at startup and masks it from upstream errors.
+- Uvicorn access logs are disabled to avoid recording incoming request details.
+- Cache keys are hashed and do not contain the raw API key.
+- Inputs are validated before upstream requests, including dates, coordinates,
+  radius, and bounded result pages.
+- Unknown tools and expected upstream failures produce safe error responses.
+- The process-local cache stores nonempty search results for up to five minutes
+  and reference data for up to one hour.
+- The process-local upstream limiter allows 10 KTO requests per minute with a
+  burst capacity of five.
+- Python HTTP binds to loopback by default. Direct public deployments should
+  use appropriate access controls.
+- The optional Node proxy has open CORS by design, plus Helmet headers, a
+  120 requests per minute per IP limit on `/mcp`, query-stripped logging, and
+  a 35 second proxy timeout. These protections are not present in direct
+  Python deployment.
+
+See [`visitkorea-mcp/SECURITY.md`](visitkorea-mcp/SECURITY.md) and
+[`visitkorea-mcp/docs/security.md`](visitkorea-mcp/docs/security.md) for the
+maintained security guidance.
+
+## Known Limitations
+
+- KTO availability, upstream response quality, and the documented API quota
+  can limit results.
+- Cache and rate limiter state is process-local. There is no database,
+  persistent cache, or shared state.
+- OAuth and client authentication are not implemented.
+- Direct Python deployment does not receive the optional Node proxy's
+  security headers or rate limiting.
+- The current GitHub tree lacks the `lib/db`, `lib/api-zod`, and
+  `lib/api-client-react` workspace packages referenced by the optional Node
+  applications. As a result, root `pnpm install`, workspace type checking,
+  and workspace builds may fail, including the Node step in CI. The Python
+  package and its tests remain independently runnable.
+
+## Troubleshooting
+
+### `VISITKOREA_API_KEY is required`
+
+Set the variable before starting the server:
+
+```bash
+export VISITKOREA_API_KEY="your_service_key_here"
+```
+
+### The HTTP port is unavailable
+
+Choose another port with `PORT` or `--port`:
+
+```bash
+PORT=3002 python visitkorea-mcp/main.py --http
+python visitkorea-mcp/main.py --http --port 3002
+```
+
+### `/healthz` returns `503`
+
+The HTTP session manager is still starting or the process is shutting down.
+Check the process output and confirm that the configured API key is present.
+
+### Node workspace commands cannot resolve `@workspace/*`
+
+The optional Node workspace currently references package directories that are
+not present in the GitHub tree. Use the Python installation and test commands
+above, or restore the missing workspace packages before using the Node
+commands.
+
+## Contributing
+
+Read [`visitkorea-mcp/CONTRIBUTING.md`](visitkorea-mcp/CONTRIBUTING.md) before
+submitting changes. At minimum, run the Python tests, compile check, and wheel
+build. Do not add live API calls or credentials to tests.
+
+## License and Data Terms
+
+The source code is licensed under the MIT License. See
+[`LICENSE`](LICENSE).
+
+Tourism data is provided by KTO through the
+[data.go.kr open API](https://www.data.go.kr/data/15101753/openapi.do).
+Follow the KTO data usage terms. Attribution is required for `Type1` content.
+`Type3` content additionally prohibits modification.
