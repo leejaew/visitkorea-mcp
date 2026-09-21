@@ -301,27 +301,33 @@ landing workspace separately.
 
 ### Replit autoscale
 
-The configured `.replit` deployment installs and builds the landing workspace,
-then installs Python dependencies into an external user environment. The same
-external `PYTHONUSERBASE` is configured for development so `.pythonlibs` is not
-recreated inside the workspace before Replit packages the deployment:
+The configured `.replit` deployment builds the landing workspace and verifies
+that the committed Python dependency bundle is present:
 
 ```bash
 pnpm --filter @workspace/landing install --frozen-lockfile
 BASE_PATH=/ PORT=3000 pnpm --filter @workspace/landing run build
-rm -rf .pythonlibs
-PYTHONUSERBASE=/home/runner/.local \
-  python3.11 -m pip install --user --ignore-installed \
-  --break-system-packages --no-cache-dir \
-  -r visitkorea-mcp/requirements.txt
+test -f visitkorea-mcp/deployment/python-deps.tar.gz
 ```
 
-It then starts the service on the deployment network interface:
+At startup, the service extracts the immutable bundle into `/tmp` and loads it
+through `PYTHONPATH`:
 
 ```bash
-PYTHONUSERBASE=/home/runner/.local \
+deps=/tmp/visitkorea-python-deps
+rm -rf "$deps"
+mkdir -p "$deps"
+tar -xzf visitkorea-mcp/deployment/python-deps.tar.gz -C "$deps"
+PYTHONNOUSERSITE=1 PYTHONPATH="$deps" \
   python3.11 visitkorea-mcp/main.py \
   --http --host 0.0.0.0
+```
+
+Regenerate and commit the bundle whenever `visitkorea-mcp/requirements.txt`
+changes:
+
+```bash
+sh visitkorea-mcp/deployment/build-python-deps.sh
 ```
 
 Before deployment, add `VISITKOREA_API_KEY` to Secrets. The Python server

@@ -3,8 +3,8 @@ modules = ["nodejs-24", "python-3.11"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "pnpm --filter @workspace/landing install --frozen-lockfile && BASE_PATH=/ PORT=3000 pnpm --filter @workspace/landing run build && rm -rf .pythonlibs && PYTHONUSERBASE=/home/runner/.local python3.11 -m pip install --user --ignore-installed --break-system-packages --no-cache-dir -r visitkorea-mcp/requirements.txt"]
-run = ["sh", "-c", "PYTHONUSERBASE=/home/runner/.local python3.11 visitkorea-mcp/main.py --http --host 0.0.0.0"]
+build = ["sh","-c","pnpm --filter @workspace/landing install --frozen-lockfile && BASE_PATH=/ PORT=3000 pnpm --filter @workspace/landing run build && test -f visitkorea-mcp/deployment/python-deps.tar.gz"]
+run = ["sh","-c","deps=/tmp/visitkorea-python-deps; rm -rf \"$deps\" && mkdir -p \"$deps\" && tar -xzf visitkorea-mcp/deployment/python-deps.tar.gz -C \"$deps\" && PYTHONNOUSERSITE=1 PYTHONPATH=\"$deps\" python3.11 visitkorea-mcp/main.py --http --host 0.0.0.0"]
 
 [workflows]
 runButton = "Project"

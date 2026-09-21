@@ -38,3 +38,13 @@ jobs:
           python -c "import mcp_server; from mcp_server.server import create_server"
           python -m compileall -q src
           python -m pip wheel --no-deps --no-build-isolation -w /tmp/visitkorea-dist .
+
+      - name: Validate deployment dependency bundle
+        run: |
+          rm -rf /tmp/visitkorea-python-deps
+          mkdir -p /tmp/visitkorea-python-deps
+          tar -xzf visitkorea-mcp/deployment/python-deps.tar.gz \
+            -C /tmp/visitkorea-python-deps
+          PYTHONNOUSERSITE=1 \
+            PYTHONPATH=/tmp/visitkorea-python-deps \
+            python -c "import httpx, mcp, starlette, uvicorn"
