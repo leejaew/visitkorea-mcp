@@ -3,8 +3,8 @@ modules = ["nodejs-24", "python-3.11"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "rm -rf .pythonlibs && PIP_USER=false python3.11 -m pip install --no-cache-dir --target .pythonlibs -r visitkorea-mcp/requirements.txt"]
-run = ["sh", "-c", "PYTHONPATH=.pythonlibs python3.11 visitkorea-mcp/main.py --http --host 0.0.0.0"]
+build = ["sh", "-c", "rm -rf .pythonlibs && python3.11 -m pip install --no-cache-dir -r visitkorea-mcp/requirements.txt"]
+run = ["sh", "-c", "python3.11 visitkorea-mcp/main.py --http --host 0.0.0.0"]
 
 [workflows]
 runButton = "Project"

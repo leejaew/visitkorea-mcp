@@ -299,18 +299,18 @@ current Node proxy. These commands require the workspace packages listed in
 ### Replit autoscale
 
 The configured `.replit` deployment installs Python dependencies into the
-project-local `.pythonlibs` directory:
+deployment user environment:
 
 ```bash
-PIP_USER=false python3.11 -m pip install --no-cache-dir \
-  --target .pythonlibs \
+rm -rf .pythonlibs
+python3.11 -m pip install --no-cache-dir \
   -r visitkorea-mcp/requirements.txt
 ```
 
 It then starts the service on the deployment network interface:
 
 ```bash
-PYTHONPATH=.pythonlibs python3.11 visitkorea-mcp/main.py \
+python3.11 visitkorea-mcp/main.py \
   --http --host 0.0.0.0
 ```
 
