@@ -31,6 +31,17 @@ def create_app(server: Server, client: KTOClient):
             status_code=200 if ready else 503,
         )
 
+    async def root(request):
+        return JSONResponse(
+            {
+                "name": "VisitKorea MCP Server",
+                "status": "ok" if ready else "starting",
+                "mcp": "/mcp",
+                "health": "/healthz",
+            },
+            status_code=200 if ready else 503,
+        )
+
     @asynccontextmanager
     async def lifespan(app):
         nonlocal ready
@@ -57,6 +68,8 @@ def create_app(server: Server, client: KTOClient):
 
     app = Starlette(
         routes=[
+            Route("/", root, methods=["GET"]),
+            Route("/api", root, methods=["GET", "POST"]),
             Route("/healthz", healthz, methods=["GET"]),
             Route("/mcp", MCPApp(), methods=["GET", "POST", "DELETE"]),
         ],
@@ -64,6 +77,7 @@ def create_app(server: Server, client: KTOClient):
     )
     app.state.mcp_manager = manager
     app.state.mcp_stateless = True
+    app.state.root = root
     app.state.healthz = healthz
     return app
 

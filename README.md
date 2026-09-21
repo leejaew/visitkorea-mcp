@@ -41,8 +41,9 @@ landing workspace.
 
 ## Architecture
 
-The deployed default is the Python server. It binds to `127.0.0.1:3001` by
-default and exposes `/mcp` and `/healthz` in HTTP mode.
+The deployed default is the Python server. Local HTTP mode binds to
+`127.0.0.1:3001` by default. The Replit deployment overrides the host to
+`0.0.0.0` and exposes `/`, `/api`, `/mcp`, and `/healthz`.
 
 ```mermaid
 flowchart LR
@@ -194,6 +195,8 @@ The default host is `127.0.0.1`. The HTTP routes are:
 
 | Route | Method | Purpose |
 | --- | --- | --- |
+| `/` | GET | Deployment readiness and endpoint discovery |
+| `/api` | GET, POST | Compatibility readiness endpoint for platform probes |
 | `/mcp` | GET, POST, DELETE | Stateless Streamable HTTP MCP transport |
 | `/healthz` | GET | Returns `200` when ready and `503` while starting |
 
@@ -295,14 +298,24 @@ current Node proxy. These commands require the workspace packages listed in
 
 ### Replit autoscale
 
-The configured `.replit` deployment runs:
+The configured `.replit` deployment installs Python dependencies into the
+project-local `.pythonlibs` directory:
 
 ```bash
-python3.11 visitkorea-mcp/main.py --http
+env -u PIP_USER python3.11 -m pip install --no-cache-dir \
+  --target .pythonlibs \
+  -r visitkorea-mcp/requirements.txt
+```
+
+It then starts the service on the deployment network interface:
+
+```bash
+PYTHONPATH=.pythonlibs python3.11 visitkorea-mcp/main.py \
+  --http --host 0.0.0.0
 ```
 
 Before deployment, add `VISITKOREA_API_KEY` to Secrets. The Python server
-defaults to `127.0.0.1:3001`; the public URL is assigned by the deployment
+uses the platform supplied `PORT`; the public URL is assigned by the deployment
 platform. The direct Python deployment does not add the Node proxy's headers,
 rate limiting, or request logging.
 
@@ -356,10 +369,11 @@ maintained security guidance.
   security headers or rate limiting.
 - The current GitHub tree lacks the `lib/db`, `lib/api-zod`, and
   `lib/api-client-react` workspace packages referenced by the optional Node
-  applications. As a result, root `pnpm install`, workspace type checking,
-  and workspace builds may fail. The optional Node applications are excluded
-  from CI until those packages are restored. The Python package and its tests
-  remain independently runnable.
+  applications. Root `pnpm install` is configured to install only root
+  dependencies, but recursive workspace installation, type checking, and builds
+  may fail. The optional Node applications are excluded from CI until those
+  packages are restored. The Python package and its tests remain independently
+  runnable.
 
 ## Troubleshooting
 

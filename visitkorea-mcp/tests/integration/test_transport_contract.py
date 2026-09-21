@@ -28,7 +28,8 @@ class TransportContractTests(unittest.TestCase):
         )
         self.assertTrue(app.state.mcp_stateless)
         routes = {route.path for route in app.routes}
-        self.assertEqual(routes, {"/healthz", "/mcp"})
+        self.assertEqual(routes, {"/", "/api", "/healthz", "/mcp"})
+        self.assertEqual(app.routes[1].methods, {"GET", "HEAD", "POST"})
         self.assertEqual(app.routes[-1].methods, {"GET", "HEAD", "POST", "DELETE"})
 
     def test_http_readiness_and_client_shutdown(self):
@@ -39,9 +40,12 @@ class TransportContractTests(unittest.TestCase):
         app = http.create_app(Server("test"), client)
 
         async def exercise():
+            self.assertEqual((await app.state.root(None)).status_code, 503)
             self.assertEqual((await app.state.healthz(None)).status_code, 503)
             async with app.router.lifespan_context(app):
+                self.assertEqual((await app.state.root(None)).status_code, 200)
                 self.assertEqual((await app.state.healthz(None)).status_code, 200)
+            self.assertEqual((await app.state.root(None)).status_code, 503)
             self.assertEqual((await app.state.healthz(None)).status_code, 503)
 
         asyncio.run(exercise())
