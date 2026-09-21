@@ -302,14 +302,17 @@ landing workspace separately.
 ### Replit autoscale
 
 The configured `.replit` deployment installs and builds the landing workspace,
-then installs Python dependencies into the deployment user environment:
+then installs Python dependencies into an external user environment. The same
+external `PYTHONUSERBASE` is configured for development so `.pythonlibs` is not
+recreated inside the workspace before Replit packages the deployment:
 
 ```bash
 pnpm --filter @workspace/landing install --frozen-lockfile
 BASE_PATH=/ PORT=3000 pnpm --filter @workspace/landing run build
 rm -rf .pythonlibs
 PYTHONUSERBASE=/home/runner/.local \
-  python3.11 -m pip install --user --no-cache-dir \
+  python3.11 -m pip install --user --ignore-installed \
+  --break-system-packages --no-cache-dir \
   -r visitkorea-mcp/requirements.txt
 ```
 

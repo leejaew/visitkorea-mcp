@@ -3,7 +3,7 @@ modules = ["nodejs-24", "python-3.11"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "pnpm --filter @workspace/landing install --frozen-lockfile && BASE_PATH=/ PORT=3000 pnpm --filter @workspace/landing run build && rm -rf .pythonlibs && PYTHONUSERBASE=/home/runner/.local python3.11 -m pip install --user --no-cache-dir -r visitkorea-mcp/requirements.txt"]
+build = ["sh", "-c", "pnpm --filter @workspace/landing install --frozen-lockfile && BASE_PATH=/ PORT=3000 pnpm --filter @workspace/landing run build && rm -rf .pythonlibs && PYTHONUSERBASE=/home/runner/.local python3.11 -m pip install --user --ignore-installed --break-system-packages --no-cache-dir -r visitkorea-mcp/requirements.txt"]
 run = ["sh", "-c", "PYTHONUSERBASE=/home/runner/.local python3.11 visitkorea-mcp/main.py --http --host 0.0.0.0"]
 
 [workflows]
@@ -37,4 +37,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
+PYTHONUSERBASE = "/home/runner/.local"
 PRODUCTION_MCP_URL = "https://visitkorea.jael.ee/mcp"
