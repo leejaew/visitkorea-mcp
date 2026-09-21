@@ -302,7 +302,7 @@ The configured `.replit` deployment installs Python dependencies into the
 project-local `.pythonlibs` directory:
 
 ```bash
-env -u PIP_USER python3.11 -m pip install --no-cache-dir \
+PIP_USER=false python3.11 -m pip install --no-cache-dir \
   --target .pythonlibs \
   -r visitkorea-mcp/requirements.txt
 ```
