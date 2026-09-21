@@ -25,15 +25,16 @@ Node.js / Express  (port $PORT)
         │
         ▼
 Python / Starlette + MCP SDK  (127.0.0.1:3001, loopback only)
-  ├─ main.py              — configuration, dependency construction, transport selection
-  ├─ server.py            — constructible MCP server and capability registration
-  ├─ transports/          — stdio and Streamable HTTP adapters
-  ├─ utils/api_client.py  — injectable KTO client, connection pool, response parsing
-  ├─ utils/cache.py       — in-memory TTL cache (1 h static / 5 min search)
-  ├─ utils/rate_limiter.py — async token bucket (10 req/min upstream)
-  ├─ utils/validation.py  — input sanitisation (GPS, radius, dates)
-  ├─ schemas/             — MCP Tool definitions (14 tools)
-  └─ tools/               — tool handler functions
+  └─ visitkorea-mcp/src/mcp_server/
+     ├─ __main__.py, main.py — package and compatibility process entry points
+     ├─ server.py             — constructible MCP server and dependency wiring
+     ├─ tools/                — thin adapters, registry, and 14 schemas
+     ├─ services/             — ordinary-Python tourism workflows and validation
+     ├─ clients/              — KTO HTTP client, cache, retries, rate limiter
+     ├─ transports/           — stdio and Streamable HTTP adapters
+     ├─ config/               — validated environment configuration
+     ├─ observability/        — stderr-only application logging
+     └─ errors/               — application error definitions
         │
         ▼
 KTO EngService2 API  (apis.data.go.kr)
@@ -113,7 +114,7 @@ pnpm install
 ### 2. Install Python dependencies
 
 ```bash
-pip install -r visitkorea-mcp/requirements.txt
+python -m pip install -e visitkorea-mcp
 ```
 
 Python dependencies:
@@ -501,36 +502,12 @@ Browse the legacy 3-level category hierarchy (`cat1`/`cat2`/`cat3`). Response ca
 
 ```
 visitkorea-mcp/          Python MCP server package
-├── main.py              Process entry point and transport selection
-├── server.py            Constructible MCP server and dependency wiring
-├── config.py            Validated environment configuration and constants
-├── requirements.txt     Python dependencies
-├── .env.example         Local setup reference (do not commit real keys)
-├── transports/
-│   ├── stdio.py         Local stdio transport adapter
-│   └── http.py          Stateless Streamable HTTP transport adapter
-├── utils/
-│   ├── api_client.py    Injectable KTO client, retries, redaction, response parsing
-│   ├── cache.py         TTL response cache (1 h for reference data, 5 min for search)
-│   ├── rate_limiter.py  Async token bucket (10 req/min upstream, burst 5)
-│   └── validation.py    Input validators (GPS bounds, radius, date format, pagination)
-├── schemas/             MCP Tool schema definitions (what tools look like to clients)
-│   ├── search_schema.py
-│   ├── events_schema.py
-│   ├── accommodations_schema.py
-│   ├── detail_schema.py
-│   ├── sync_schema.py
-│   └── codes_schema.py
-├── tools/               Tool handlers (what happens when tools are called)
-    ├── __init__.py      register_all_tools() — wires all handlers into the MCP Server
-    ├── search.py        search_tourism_by_area / by_location / by_keyword
-    ├── events.py        search_festivals_and_events
-    ├── accommodations.py search_accommodations
-    ├── detail.py        get_tourism_common / intro / detail_info + images
-    ├── sync.py          get_sync_list
-│   └── codes.py         get_legal_district / classification / area / category_codes
-└── tests/
-    └── test_production_boundaries.py  Configuration, client, validation, and contract tests
+├── pyproject.toml        Installable src-layout package and console entry point
+├── main.py               Compatibility launcher for existing client configs
+├── src/mcp_server/       Implementation package
+├── requirements.txt      Python dependency compatibility file
+├── tests/                Unit, integration, contract, and security tests
+└── docs/                 Architecture, capability, security, and deployment docs
 
 artifacts/
 ├── api-server/          Node.js reverse proxy
@@ -544,6 +521,22 @@ artifacts/
 ---
 
 ## Security & Performance
+
+### Python package layout
+
+The Python implementation is an installable src-layout package under
+`visitkorea-mcp/src/mcp_server`. `main.py` remains a compatibility launcher
+for documented client configurations. Tool adapters are thin; tourism
+workflows live in `services/`, upstream HTTP behavior lives in `clients/`,
+and transport-specific behavior lives in `transports/`. Install it with:
+
+```bash
+python -m pip install -e visitkorea-mcp
+python -m mcp_server
+```
+
+The detailed package architecture and deployment notes are in
+`visitkorea-mcp/docs/`.
 
 | Layer | Feature | Detail |
 |---|---|---|

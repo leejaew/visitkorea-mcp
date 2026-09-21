@@ -1,1 +1,0 @@
-"""Transport adapters for stdio and Streamable HTTP."""

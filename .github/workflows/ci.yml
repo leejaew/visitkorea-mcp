@@ -35,14 +35,21 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: visitkorea-mcp/requirements.txt
+          cache-dependency-path: visitkorea-mcp/pyproject.toml
 
       - name: Install Python dependencies
-        run: python -m pip install -r visitkorea-mcp/requirements.txt
+        run: python -m pip install -e visitkorea-mcp
 
       - name: Run Python tests
         working-directory: visitkorea-mcp
         run: python -m unittest discover -s tests -v
+
+      - name: Validate package imports and build
+        working-directory: visitkorea-mcp
+        run: |
+          python -c "import mcp_server; from mcp_server.server import create_server"
+          python -m compileall -q src
+          python -m pip wheel --no-deps --no-build-isolation -w /tmp/visitkorea-dist .
 
       - name: Type-check workspace
         run: pnpm run typecheck
