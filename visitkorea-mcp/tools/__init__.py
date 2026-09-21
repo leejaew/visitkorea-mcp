@@ -18,6 +18,7 @@ import logging
 
 from mcp.server import Server
 from mcp.types import TextContent
+from utils.api_client import KTOClient, configure_client
 
 from . import search, events, accommodations, detail, sync, codes
 
@@ -26,8 +27,10 @@ _log = logging.getLogger("visitkorea_mcp.tools")
 _ALL_MODULES = [search, events, accommodations, detail, sync, codes]
 
 
-def register_all_tools(server: Server) -> None:
+def register_all_tools(server: Server, client: KTOClient | None = None) -> None:
     """Register list_tools and call_tool handlers on *server*."""
+    if client is not None:
+        configure_client(client)
 
     @server.list_tools()
     async def list_tools():
@@ -50,22 +53,27 @@ def register_all_tools(server: Server) -> None:
                 type="text",
                 text=json.dumps({"error": f"Unknown tool: {name}"}, ensure_ascii=False),
             )]
-        except (ValueError, PermissionError) as exc:
+        except ValueError as exc:
             return [TextContent(
                 type="text",
                 text=json.dumps({"error": str(exc)}, ensure_ascii=False),
             )]
-        except RuntimeError as exc:
+        except PermissionError:
             return [TextContent(
                 type="text",
-                text=json.dumps({"error": str(exc)}, ensure_ascii=False),
+                text=json.dumps({"error": "Upstream authentication failed."}, ensure_ascii=False),
+            )]
+        except RuntimeError:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": "The upstream service is temporarily unavailable."}, ensure_ascii=False),
             )]
         except Exception as exc:
             _log.exception("Unexpected error in tool '%s'", name)
             return [TextContent(
                 type="text",
                 text=json.dumps(
-                    {"error": f"Unexpected error ({type(exc).__name__}): {exc}"},
+                    {"error": "Internal server error."},
                     ensure_ascii=False,
                 ),
             )]

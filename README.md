@@ -25,7 +25,10 @@ Node.js / Express  (port $PORT)
         │
         ▼
 Python / Starlette + MCP SDK  (127.0.0.1:3001, loopback only)
-  ├─ utils/api_client.py  — shared httpx connection pool, response parsing
+  ├─ main.py              — configuration, dependency construction, transport selection
+  ├─ server.py            — constructible MCP server and capability registration
+  ├─ transports/          — stdio and Streamable HTTP adapters
+  ├─ utils/api_client.py  — injectable KTO client, connection pool, response parsing
   ├─ utils/cache.py       — in-memory TTL cache (1 h static / 5 min search)
   ├─ utils/rate_limiter.py — async token bucket (10 req/min upstream)
   ├─ utils/validation.py  — input sanitisation (GPS, radius, dates)
@@ -117,10 +120,10 @@ Python dependencies:
 
 | Package | Version | Purpose |
 |---|---|---|
-| `mcp` | ≥ 1.27.0 | MCP SDK — server, tools, Streamable HTTP transport |
-| `httpx` | ≥ 0.28.0 | Async HTTP client with connection pooling |
-| `uvicorn` | ≥ 0.44.0 | ASGI server |
-| `starlette` | ≥ 1.0.0 | ASGI routing and lifespan management |
+| `mcp` | 1.27.0 | MCP SDK, server, tools, and Streamable HTTP transport |
+| `httpx` | 0.28.1 | Async HTTP client with connection pooling |
+| `uvicorn` | 0.44.0 | ASGI server |
+| `starlette` | 1.0.0 | ASGI routing and lifespan management |
 
 ### 3. Set your API key
 
@@ -498,12 +501,16 @@ Browse the legacy 3-level category hierarchy (`cat1`/`cat2`/`cat3`). Response ca
 
 ```
 visitkorea-mcp/          Python MCP server package
-├── main.py              Entry point — argparse, stdio + Streamable HTTP transports
-├── config.py            Constants (BASE_URL, content type map)
+├── main.py              Process entry point and transport selection
+├── server.py            Constructible MCP server and dependency wiring
+├── config.py            Validated environment configuration and constants
 ├── requirements.txt     Python dependencies
 ├── .env.example         Local setup reference (do not commit real keys)
+├── transports/
+│   ├── stdio.py         Local stdio transport adapter
+│   └── http.py          Stateless Streamable HTTP transport adapter
 ├── utils/
-│   ├── api_client.py    Shared httpx client, API key loading, response parsing
+│   ├── api_client.py    Injectable KTO client, retries, redaction, response parsing
 │   ├── cache.py         TTL response cache (1 h for reference data, 5 min for search)
 │   ├── rate_limiter.py  Async token bucket (10 req/min upstream, burst 5)
 │   └── validation.py    Input validators (GPS bounds, radius, date format, pagination)
@@ -514,14 +521,16 @@ visitkorea-mcp/          Python MCP server package
 │   ├── detail_schema.py
 │   ├── sync_schema.py
 │   └── codes_schema.py
-└── tools/               Tool handlers (what happens when tools are called)
+├── tools/               Tool handlers (what happens when tools are called)
     ├── __init__.py      register_all_tools() — wires all handlers into the MCP Server
     ├── search.py        search_tourism_by_area / by_location / by_keyword
     ├── events.py        search_festivals_and_events
     ├── accommodations.py search_accommodations
     ├── detail.py        get_tourism_common / intro / detail_info + images
     ├── sync.py          get_sync_list
-    └── codes.py         get_legal_district / classification / area / category_codes
+│   └── codes.py         get_legal_district / classification / area / category_codes
+└── tests/
+    └── test_production_boundaries.py  Configuration, client, validation, and contract tests
 
 artifacts/
 ├── api-server/          Node.js reverse proxy
@@ -569,7 +578,16 @@ artifacts/
 
 ## Contributing
 
-Contributions are welcome. Please open an issue before submitting a pull request. Ensure all changes are tested against the live API and that no API keys are committed to the repository.
+Contributions are welcome. Please open an issue before submitting a pull request. Run the offline test suite and TypeScript checks before using the optional live API for manual verification:
+
+```bash
+cd visitkorea-mcp
+python3 -m unittest discover -s tests -v
+cd ..
+pnpm --filter @workspace/api-server run typecheck
+```
+
+Never commit API keys. Live API verification should use `VISITKOREA_API_KEY` from the environment.
 
 ---
 

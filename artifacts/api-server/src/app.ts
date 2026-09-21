@@ -7,14 +7,41 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
+export type AppOptions = {
+  pythonTarget: string;
+  pythonReady: Promise<void>;
+};
+
+function validatePythonTarget(pythonTarget: string): URL {
+  const target = new URL(pythonTarget);
+  const port = Number(target.port);
+  if (
+    target.protocol !== "http:" ||
+    target.hostname !== "127.0.0.1" ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535 ||
+    target.pathname !== "/" ||
+    target.search ||
+    target.hash
+  ) {
+    throw new Error("Python target must be an HTTP URL on 127.0.0.1 with a valid port");
+  }
+  return target;
+}
+
 /**
  * Poll the Python MCP server's /healthz endpoint until it returns HTTP 200.
- * This guarantees the session manager lifespan has started (the task group is
- * initialised) before we forward any MCP traffic.  A plain TCP-port check
- * resolves too early — the port opens before Starlette's lifespan runs.
+ * This is deliberately called by the process entry point, not while this
+ * module is imported or while an app is being constructed.
  */
-async function waitForPythonHttp(port: number, maxWaitMs = 300_000): Promise<void> {
-  const url = `http://127.0.0.1:${port}/healthz`;
+export async function waitForPythonHttp(
+  pythonTarget: string,
+  maxWaitMs = 300_000,
+): Promise<void> {
+  const target = validatePythonTarget(pythonTarget);
+  const url = new URL("/healthz", target).toString();
+  const port = target.port;
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     try {
@@ -31,77 +58,74 @@ async function waitForPythonHttp(port: number, maxWaitMs = 300_000): Promise<voi
   throw new Error(`Timed out waiting for Python MCP server on port ${port}`);
 }
 
-const pythonReady = waitForPythonHttp(3001);
+export function createApp({ pythonTarget, pythonReady }: AppOptions): Express {
+  validatePythonTarget(pythonTarget);
+  const app: Express = express();
 
-const app: Express = express();
+  // Security headers — disable CSP and COEP since this is an API/proxy server
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
-// Security headers — disable CSP and COEP since this is an API/proxy server
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false,
-  }),
-);
-
-app.use(
-  pinoHttp({
-    logger,
-    serializers: {
-      req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0], // strip query string to avoid logging API keys
-        };
+  app.use(
+    pinoHttp({
+      logger,
+      serializers: {
+        req(req) {
+          return {
+            id: req.id,
+            method: req.method,
+            url: req.url?.split("?")[0], // strip query string to avoid logging API keys
+          };
+        },
+        res(res) {
+          return { statusCode: res.statusCode };
+        },
       },
-      res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
-      },
-    },
-  }),
-);
+    }),
+  );
 
-// CORS — intentionally open for a public MCP server
-app.use(cors());
+  // CORS — intentionally open for a public MCP server
+  app.use(cors());
 
-// Rate limiter for the MCP proxy — protects upstream KTO API quota
-const mcpLimiter = rateLimit({
-  windowMs: 60 * 1000,   // 1 minute window
-  max: 120,              // 120 requests per IP per minute (~2 req/s burst)
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests. Please slow down." },
-  skip: (req) => req.ip === "127.0.0.1" || req.ip === "::1", // skip loopback
-});
+  // Rate limiter for the MCP proxy — protects upstream KTO API quota
+  const mcpLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please slow down." },
+    skip: (req) => req.ip === "127.0.0.1" || req.ip === "::1",
+  });
 
-const waitForPython = async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    await pythonReady;
-    next();
-  } catch {
-    res.status(503).json({ error: "MCP server unavailable" });
-  }
-};
+  const waitForPython = async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      await pythonReady;
+      next();
+    } catch {
+      res.status(503).json({ error: "MCP server unavailable" });
+    }
+  };
 
-// Streamable HTTP transport — MCP endpoint for Claude AI and other HTTP-based clients
-app.use("/mcp", mcpLimiter);
-app.use("/mcp", waitForPython);
-app.use(
-  "/mcp",
-  createProxyMiddleware({
-    target: "http://127.0.0.1:3001", // loopback only — Python binds 127.0.0.1
-    changeOrigin: false,
-    pathRewrite: { "^/": "/mcp" },
-    proxyTimeout: 35_000, // slightly above Python's 30 s httpx timeout
-    timeout: 35_000,
-  }),
-);
+  // Streamable HTTP transport — MCP endpoint for Claude AI and other HTTP-based clients
+  app.use("/mcp", mcpLimiter);
+  app.use("/mcp", waitForPython);
+  app.use(
+    "/mcp",
+    createProxyMiddleware({
+      target: pythonTarget,
+      changeOrigin: false,
+      pathRewrite: { "^/": "/mcp" },
+      proxyTimeout: 35_000,
+      timeout: 35_000,
+    }),
+  );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-app.use("/api", router);
-
-export default app;
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  app.use("/api", router);
+  return app;
+}

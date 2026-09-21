@@ -8,6 +8,7 @@ rather than producing cryptic upstream API error codes.
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 VALID_ARRANGE_CODES = frozenset({"A", "C", "D", "O", "Q", "R"})
 
@@ -50,12 +51,16 @@ def validate_gps(map_x: float, map_y: float) -> tuple[float, float]:
 
 
 def validate_date(date_str: str) -> str:
-    """Validate YYYYMMDD format."""
+    """Validate a real calendar date in YYYYMMDD format."""
     s = date_str.strip()
     if not re.fullmatch(r"\d{8}", s):
         raise ValueError(
             f"Date '{date_str}' must be in YYYYMMDD format (e.g. 20260101)."
         )
+    try:
+        datetime.strptime(s, "%Y%m%d")
+    except ValueError:
+        raise ValueError(f"Date '{date_str}' is not a valid calendar date.") from None
     return s
 
 
