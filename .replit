@@ -3,11 +3,7 @@ modules = ["nodejs-24", "python-3.11"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-run = ["sh", "-c", "python3.11 visitkorea-mcp/server.py --http"]
-
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+run = ["sh", "-c", "python3.11 visitkorea-mcp/main.py --http"]
 
 [workflows]
 runButton = "Project"
@@ -16,10 +12,6 @@ runButton = "Project"
 stack = "PNPM_WORKSPACE"
 expertMode = true
 integrations = ["github:1.0.0"]
-
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
 
 [[ports]]
 localPort = 3001
