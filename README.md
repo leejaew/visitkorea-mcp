@@ -308,14 +308,16 @@ then installs Python dependencies into the deployment user environment:
 pnpm --filter @workspace/landing install --frozen-lockfile
 BASE_PATH=/ PORT=3000 pnpm --filter @workspace/landing run build
 rm -rf .pythonlibs
-python3.11 -m pip install --no-cache-dir \
+PYTHONUSERBASE=/home/runner/.local \
+  python3.11 -m pip install --user --no-cache-dir \
   -r visitkorea-mcp/requirements.txt
 ```
 
 It then starts the service on the deployment network interface:
 
 ```bash
-python3.11 visitkorea-mcp/main.py \
+PYTHONUSERBASE=/home/runner/.local \
+  python3.11 visitkorea-mcp/main.py \
   --http --host 0.0.0.0
 ```
 
