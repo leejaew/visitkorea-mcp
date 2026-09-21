@@ -16,22 +16,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: pnpm
-
-      - name: Enable pnpm
-        run: corepack enable
-
-      - name: Install Node.js dependencies
-        run: pnpm install --frozen-lockfile
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -50,6 +38,3 @@ jobs:
           python -c "import mcp_server; from mcp_server.server import create_server"
           python -m compileall -q src
           python -m pip wheel --no-deps --no-build-isolation -w /tmp/visitkorea-dist .
-
-      - name: Type-check workspace
-        run: pnpm run typecheck

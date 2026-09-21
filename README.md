@@ -101,7 +101,7 @@ and endpoint mappings are described in
 ├── artifacts/
 │   ├── api-server/           Optional Node proxy
 │   └── landing/              Optional Vite landing workspace
-├── .github/workflows/ci.yml  Python and workspace checks
+├── .github/workflows/ci.yml  Python package checks
 ├── .replit                   Replit deployment configuration
 ├── pnpm-workspace.yaml       Optional Node workspace configuration
 └── LICENSE
@@ -264,10 +264,10 @@ python -m compileall -q src
 python -m pip wheel --no-deps --no-build-isolation -w /tmp/visitkorea-dist .
 ```
 
-The repository does not define a separate Python lint command. The root CI
-workflow also attempts Node dependency installation and workspace type
-checking. Those optional checks are currently affected by missing workspace
-packages described in [Known Limitations](#known-limitations).
+The repository does not define a separate Python lint command. CI runs the
+Python installation, test, import, compile, and wheel build checks. The
+optional Node workspace is excluded from CI until its missing workspace
+packages are restored.
 
 ## Optional Node Proxy and Landing Workspace
 
@@ -357,8 +357,9 @@ maintained security guidance.
 - The current GitHub tree lacks the `lib/db`, `lib/api-zod`, and
   `lib/api-client-react` workspace packages referenced by the optional Node
   applications. As a result, root `pnpm install`, workspace type checking,
-  and workspace builds may fail, including the Node step in CI. The Python
-  package and its tests remain independently runnable.
+  and workspace builds may fail. The optional Node applications are excluded
+  from CI until those packages are restored. The Python package and its tests
+  remain independently runnable.
 
 ## Troubleshooting
 
