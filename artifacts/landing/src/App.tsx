@@ -107,23 +107,20 @@ function CopyButton({
 
 
 export default function App() {
-  const [isProd, setIsProd] = useState(false);
-  const [host, setHost] = useState(window.location.host);
+  const [mcpUrl, setMcpUrl] = useState<string | null>(null);
   const [isManusOpen, setIsManusOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/config")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Unable to load production MCP URL");
+        return r.json();
+      })
       .then((data) => {
-        // Update the connector URL to always show the best available host (production if deployed)
-        if (data.host) setHost(data.host);
-        // Only hide the dev warning when the user is *actually on* the production domain —
-        // not just because the project happens to be deployed. A deployed project still
-        // serves the dev workspace at a janeway URL, which is not the permanent URL.
-        setIsProd(Boolean(data.mcpUrl));
+        setMcpUrl(data.mcpUrl ?? null);
       })
       .catch(() => {
-        setIsProd(false);
+        setMcpUrl(null);
       });
   }, []);
 
@@ -131,7 +128,7 @@ export default function App() {
   "mcpServers": {
     "visitkorea": {
       "type": "streamableHttp",
-      "url": "https://${host}/mcp"
+      "url": "${mcpUrl ?? "Production endpoint unavailable"}"
     }
   }
 }`;
@@ -191,12 +188,13 @@ export default function App() {
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             Paste this into your AI agent's custom connector settings. The Streamable HTTP endpoint is at{" "}
-            <code className="bg-muted px-1 py-0.5 rounded">https://{host}/mcp</code>
+            <code className="bg-muted px-1 py-0.5 rounded">
+              {mcpUrl ?? "Production endpoint unavailable"}
+            </code>
           </p>
-          {!isProd && (
+          {!mcpUrl && (
             <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-              This is the development URL. Deploy the project to get your permanent{" "}
-              <code className="bg-muted px-1 py-0.5 rounded">.replit.app</code> production URL.
+              The production connector URL is not configured.
             </p>
           )}
         </section>

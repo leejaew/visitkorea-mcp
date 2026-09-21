@@ -6,8 +6,11 @@ import sys
 import asyncio
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
+import json
+import os
+from types import SimpleNamespace
 from tempfile import TemporaryDirectory
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from mcp.server import Server
 
@@ -62,6 +65,69 @@ class TransportContractTests(unittest.TestCase):
                 {"", "/api", "/api/config", "/healthz", "/mcp"},
             )
             self.assertEqual(routes[""].name, "landing")
+
+    def test_http_config_prefers_production_mcp_url(self):
+        with TemporaryDirectory() as directory:
+            app = http.create_app(
+                Server("test"),
+                KTOClient(AppConfig(api_key="secret")),
+                landing_dir=Path(directory),
+            )
+            request = SimpleNamespace(
+                headers={},
+                url=SimpleNamespace(
+                    netloc="project-name.replit.dev",
+                    scheme="https",
+                ),
+            )
+
+            async def exercise():
+                with patch.dict(
+                    os.environ,
+                    {
+                        "PRODUCTION_MCP_URL":
+                            "https://visitkorea.example/mcp",
+                    },
+                ):
+                    response = await app.state.config(request)
+                payload = json.loads(response.body)
+                self.assertEqual(
+                    payload,
+                    {
+                        "mcpUrl": "https://visitkorea.example/mcp",
+                        "host": "visitkorea.example",
+                    },
+                )
+
+            asyncio.run(exercise())
+
+    def test_http_config_never_exposes_development_host(self):
+        with TemporaryDirectory() as directory:
+            app = http.create_app(
+                Server("test"),
+                KTOClient(AppConfig(api_key="secret")),
+                landing_dir=Path(directory),
+            )
+            request = SimpleNamespace(
+                headers={},
+                url=SimpleNamespace(
+                    netloc="project-name.replit.dev",
+                    scheme="https",
+                ),
+            )
+
+            async def exercise():
+                with patch.dict(
+                    os.environ,
+                    {"PRODUCTION_MCP_URL": ""},
+                ):
+                    response = await app.state.config(request)
+                self.assertEqual(
+                    json.loads(response.body),
+                    {"mcpUrl": None, "host": None},
+                )
+
+            asyncio.run(exercise())
 
     def test_http_readiness_and_client_shutdown(self):
         class Client:

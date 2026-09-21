@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from mcp.server import Server
 
@@ -60,13 +62,43 @@ def create_app(
         )
 
     async def config(request):
-        host = request.url.netloc
-        forwarded_proto = request.headers.get("x-forwarded-proto")
-        scheme = forwarded_proto.split(",", 1)[0].strip() if forwarded_proto else request.url.scheme
+        configured_url = os.environ.get("PRODUCTION_MCP_URL", "").strip()
+        if configured_url:
+            parsed = urlsplit(configured_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                raise RuntimeError(
+                    "PRODUCTION_MCP_URL must be an absolute HTTP or HTTPS URL"
+                )
+            mcp_url = configured_url
+        else:
+            forwarded_host = request.headers.get("x-forwarded-host")
+            host = (
+                forwarded_host.split(",", 1)[0].strip()
+                if forwarded_host
+                else request.url.netloc
+            )
+            hostname = host.split(":", 1)[0].lower()
+            is_development_host = (
+                hostname == "localhost"
+                or hostname == "127.0.0.1"
+                or hostname.endswith(".replit.dev")
+            )
+            if is_development_host:
+                mcp_url = None
+            else:
+                forwarded_proto = request.headers.get("x-forwarded-proto")
+                scheme = (
+                    forwarded_proto.split(",", 1)[0].strip()
+                    if forwarded_proto
+                    else request.url.scheme
+                )
+                mcp_url = f"{scheme}://{host}/mcp"
+
+        public_host = urlsplit(mcp_url).netloc if mcp_url else None
         return JSONResponse(
             {
-                "mcpUrl": f"{scheme}://{host}/mcp",
-                "host": host,
+                "mcpUrl": mcp_url,
+                "host": public_host,
             }
         )
 
@@ -115,6 +147,7 @@ def create_app(
     app.state.mcp_manager = manager
     app.state.mcp_stateless = True
     app.state.landing_enabled = landing_enabled
+    app.state.config = config
     app.state.readiness = readiness
     app.state.healthz = healthz
     return app

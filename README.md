@@ -130,6 +130,7 @@ The Node workspace is not required to run the Python MCP server.
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `VISITKOREA_API_KEY` | Yes | None | KTO service key. The value is URL-decoded at startup. |
+| `PRODUCTION_MCP_URL` | Recommended | None | Public production MCP endpoint displayed by the landing page. |
 | `PORT` | No for Python | `3001` | Python HTTP port. The Node proxy requires this variable for its public port. |
 | `VISITKOREA_TIMEOUT` | No | `30` | Python upstream request timeout in seconds. |
 | `PYTHON_PORT` | No for Node proxy | `3001` | Port used by the Node proxy to reach its Python child process. |
