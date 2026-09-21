@@ -120,9 +120,7 @@ export default function App() {
         // Only hide the dev warning when the user is *actually on* the production domain —
         // not just because the project happens to be deployed. A deployed project still
         // serves the dev workspace at a janeway URL, which is not the permanent URL.
-        const onProductionDomain =
-          !!data.mcpUrl && window.location.hostname.endsWith(".replit.app");
-        setIsProd(onProductionDomain);
+        setIsProd(Boolean(data.mcpUrl));
       })
       .catch(() => {
         setIsProd(false);

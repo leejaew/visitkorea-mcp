@@ -41,9 +41,10 @@ landing workspace.
 
 ## Architecture
 
-The deployed default is the Python server. Local HTTP mode binds to
-`127.0.0.1:3001` by default. The Replit deployment overrides the host to
-`0.0.0.0` and exposes `/`, `/api`, `/mcp`, and `/healthz`.
+The deployed default is the Python server with the built Vite landing page
+served at `/`. Local HTTP mode binds to `127.0.0.1:3001` by default. The Replit
+deployment overrides the host to `0.0.0.0` and exposes `/`, `/api`, `/mcp`, and
+`/healthz`.
 
 ```mermaid
 flowchart LR
@@ -55,7 +56,7 @@ flowchart LR
     ClientLayer --> KTO[KTO EngService2 API]
 
     Optional[Optional Node proxy] -. forwards /mcp .-> Transport
-    Landing[Optional Vite landing workspace] -. separate frontend .-> Optional
+    Landing[Vite landing workspace] --> Transport
 ```
 
 The optional Node proxy can add Helmet headers, open CORS, a 120 requests per
@@ -195,8 +196,9 @@ The default host is `127.0.0.1`. The HTTP routes are:
 
 | Route | Method | Purpose |
 | --- | --- | --- |
-| `/` | GET | Deployment readiness and endpoint discovery |
+| `/` | GET | Built VisitKorea landing page in Replit deployments; readiness JSON when no build is present |
 | `/api` | GET, POST | Compatibility readiness endpoint for platform probes |
+| `/api/config` | GET | Public MCP host configuration used by the landing page |
 | `/mcp` | GET, POST, DELETE | Stateless Streamable HTTP MCP transport |
 | `/healthz` | GET | Returns `200` when ready and `503` while starting |
 
@@ -290,18 +292,20 @@ The landing workspace is a separate Vite application:
 pnpm --filter @workspace/landing run dev
 ```
 
-The landing page is not served at the API root by the Python server or the
-current Node proxy. These commands require the workspace packages listed in
-`pnpm-workspace.yaml` to be present.
+The Replit production build compiles this workspace and the Python server
+serves the resulting static files at `/`. The development command serves the
+landing workspace separately.
 
 ## Deployment
 
 ### Replit autoscale
 
-The configured `.replit` deployment installs Python dependencies into the
-deployment user environment:
+The configured `.replit` deployment installs and builds the landing workspace,
+then installs Python dependencies into the deployment user environment:
 
 ```bash
+pnpm --filter @workspace/landing install --frozen-lockfile
+BASE_PATH=/ PORT=3000 pnpm --filter @workspace/landing run build
 rm -rf .pythonlibs
 python3.11 -m pip install --no-cache-dir \
   -r visitkorea-mcp/requirements.txt
@@ -369,11 +373,11 @@ maintained security guidance.
   security headers or rate limiting.
 - The current GitHub tree lacks the `lib/db`, `lib/api-zod`, and
   `lib/api-client-react` workspace packages referenced by the optional Node
-  applications. Root `pnpm install` is configured to install only root
-  dependencies, but recursive workspace installation, type checking, and builds
-  may fail. The optional Node applications are excluded from CI until those
-  packages are restored. The Python package and its tests remain independently
-  runnable.
+  proxy. Root `pnpm install` is configured to install only root dependencies,
+  and the production build filters installation to the self-contained landing
+  workspace. Recursive workspace installation, type checking, and the optional
+  proxy build may fail until those packages are restored. The Python package,
+  landing page, and their checks remain independently runnable.
 
 ## Troubleshooting
 

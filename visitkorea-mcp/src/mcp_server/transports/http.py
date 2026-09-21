@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from mcp.server import Server
 
@@ -10,16 +11,32 @@ from ..clients import KTOClient
 from ..config import AppConfig
 
 
-def create_app(server: Server, client: KTOClient):
+DEFAULT_LANDING_DIR = (
+    Path(__file__).resolve().parents[4]
+    / "artifacts"
+    / "landing"
+    / "dist"
+    / "public"
+)
+
+
+def create_app(
+    server: Server,
+    client: KTOClient,
+    landing_dir: Path | None = None,
+):
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from starlette.applications import Starlette
     from starlette.responses import JSONResponse
-    from starlette.routing import Route
+    from starlette.routing import Mount, Route
+    from starlette.staticfiles import StaticFiles
 
     manager = StreamableHTTPSessionManager(
         app=server, event_store=None, json_response=True, stateless=True,
     )
     ready = False
+    static_dir = landing_dir or DEFAULT_LANDING_DIR
+    landing_enabled = (static_dir / "index.html").is_file()
 
     class MCPApp:
         async def __call__(self, scope, receive, send):
@@ -31,7 +48,7 @@ def create_app(server: Server, client: KTOClient):
             status_code=200 if ready else 503,
         )
 
-    async def root(request):
+    async def readiness(request):
         return JSONResponse(
             {
                 "name": "VisitKorea MCP Server",
@@ -40,6 +57,17 @@ def create_app(server: Server, client: KTOClient):
                 "health": "/healthz",
             },
             status_code=200 if ready else 503,
+        )
+
+    async def config(request):
+        host = request.url.netloc
+        forwarded_proto = request.headers.get("x-forwarded-proto")
+        scheme = forwarded_proto.split(",", 1)[0].strip() if forwarded_proto else request.url.scheme
+        return JSONResponse(
+            {
+                "mcpUrl": f"{scheme}://{host}/mcp",
+                "host": host,
+            }
         )
 
     @asynccontextmanager
@@ -66,18 +94,28 @@ def create_app(server: Server, client: KTOClient):
                     await asyncio.shield(close_task)
                     raise
 
-    app = Starlette(
-        routes=[
-            Route("/", root, methods=["GET"]),
-            Route("/api", root, methods=["GET", "POST"]),
-            Route("/healthz", healthz, methods=["GET"]),
-            Route("/mcp", MCPApp(), methods=["GET", "POST", "DELETE"]),
-        ],
-        lifespan=lifespan,
-    )
+    routes = [
+        Route("/api", readiness, methods=["GET", "POST"]),
+        Route("/api/config", config, methods=["GET"]),
+        Route("/healthz", healthz, methods=["GET"]),
+        Route("/mcp", MCPApp(), methods=["GET", "POST", "DELETE"]),
+    ]
+    if landing_enabled:
+        routes.append(
+            Mount(
+                "/",
+                app=StaticFiles(directory=static_dir, html=True),
+                name="landing",
+            )
+        )
+    else:
+        routes.insert(0, Route("/", readiness, methods=["GET"]))
+
+    app = Starlette(routes=routes, lifespan=lifespan)
     app.state.mcp_manager = manager
     app.state.mcp_stateless = True
-    app.state.root = root
+    app.state.landing_enabled = landing_enabled
+    app.state.readiness = readiness
     app.state.healthz = healthz
     return app
 
